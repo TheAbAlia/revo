@@ -183,6 +183,35 @@ export const organizationMembers = pgTable(
   ]
 );
 
+export const providerConnections = pgTable(
+  'provider_connections',
+  {
+    id: serial('id').primaryKey(),
+
+    organizationId: integer('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+
+    provider: varchar('provider', { length: 30 }).notNull(),
+    externalAccountId: text('external_account_id').notNull(),
+
+    refreshTokenEncrypted: text('refresh_token_encrypted').notNull(),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('provider_connections_org_provider_account_unique').on(
+      table.organizationId,
+      table.provider,
+      table.externalAccountId
+    ),
+    index('provider_connections_organization_idx').on(
+      table.organizationId
+    ),
+  ]
+);
+
 export const locations = pgTable('locations', {
   id: serial('id').primaryKey(),
 
@@ -330,6 +359,7 @@ export const organizationsRelations = relations(
   organizations,
   ({ many }) => ({
     members: many(organizationMembers),
+    providerConnections: many(providerConnections),
     locations: many(locations),
     brandVoices: many(brandVoices),
     reviews: many(reviews),
@@ -349,6 +379,16 @@ export const organizationMembersRelations = relations(
     user: one(users, {
       fields: [organizationMembers.userId],
       references: [users.id],
+    }),
+  })
+);
+
+export const providerConnectionsRelations = relations(
+  providerConnections,
+  ({ one }) => ({
+    organization: one(organizations, {
+      fields: [providerConnections.organizationId],
+      references: [organizations.id],
     }),
   })
 );
@@ -434,6 +474,9 @@ export type OrganizationMember =
   typeof organizationMembers.$inferSelect;
 export type NewOrganizationMember =
   typeof organizationMembers.$inferInsert;
+
+export type ProviderConnection = typeof providerConnections.$inferSelect;
+export type NewProviderConnection = typeof providerConnections.$inferInsert;
 
 export type Location = typeof locations.$inferSelect;
 export type NewLocation = typeof locations.$inferInsert;
