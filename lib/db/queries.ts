@@ -1,6 +1,13 @@
 import { desc, and, eq, isNull } from 'drizzle-orm';
 import { db } from './drizzle';
-import { activityLogs, teamMembers, teams, users } from './schema';
+import {
+  activityLogs,
+  organizationMembers,
+  organizations,
+  teamMembers,
+  teams,
+  users
+} from './schema';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/session';
 
@@ -34,6 +41,33 @@ export async function getUser() {
   }
 
   return user[0];
+}
+
+
+export async function getOrganizationForUser() {
+  const user = await getUser();
+
+  if (!user) {
+    return null;
+  }
+
+  const membership = await db
+    .select({
+      organization: organizations,
+      role: organizationMembers.role
+    })
+    .from(organizationMembers)
+    .innerJoin(
+      organizations,
+      eq(
+        organizationMembers.organizationId,
+        organizations.id
+      )
+    )
+    .where(eq(organizationMembers.userId, user.id))
+    .limit(1);
+
+  return membership[0] ?? null;
 }
 
 export async function getTeamByStripeCustomerId(customerId: string) {
