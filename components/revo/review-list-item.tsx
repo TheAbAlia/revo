@@ -1,4 +1,4 @@
-import type { Review } from '@/lib/mock/reviews';
+import type { ReviewViewModel } from '@/lib/reviews/view-model';
 import { Check, MessageSquareText, Star } from 'lucide-react';
 
 function Stars({ rating }: { rating: number }) {
@@ -24,7 +24,7 @@ export function ReviewListItem({
   selected,
   onSelect
 }: {
-  review: Review;
+  review: ReviewViewModel;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -41,28 +41,28 @@ export function ReviewListItem({
     >
       <div className="flex items-start gap-3">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface text-[10px] font-semibold">
-          {review.initials}
+          {review.authorInitials}
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-3">
             <span className="truncate text-[13px] font-semibold">
-              {review.author}
+              {review.authorName}
             </span>
 
             <span className="shrink-0 text-[11px] text-muted-foreground">
-              {review.createdAt}
+              {review.receivedAtLabel}
             </span>
           </div>
 
           <div className="mt-1.5 flex items-center justify-between gap-2">
             <Stars rating={review.rating} />
 
-            {review.status === 'draft' && (
+            {review.responseStatus === 'draft' && (
               <MessageSquareText className="h-3.5 w-3.5 text-muted-foreground" />
             )}
 
-            {review.status === 'published' && (
+            {review.responseStatus === 'published' && (
               <Check className="h-3.5 w-3.5 text-muted-foreground" />
             )}
           </div>
@@ -72,7 +72,7 @@ export function ReviewListItem({
           </p>
 
           <div className="mt-3 text-[10px] text-muted-foreground">
-            {review.platform} · {review.location}
+            {review.providerLabel} · {review.locationLabel}
           </div>
         </div>
       </div>

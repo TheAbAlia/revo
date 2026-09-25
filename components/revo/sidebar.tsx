@@ -10,6 +10,7 @@ import {
   Workflow
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { signOut } from '@/app/(login)/actions';
 
 const primaryNavigation = [
   {
@@ -123,21 +124,25 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="mt-auto">
-        <button className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-[11px] font-semibold">
-            TA
+      <div className="mt-auto border-t pt-3">
+        <div className="px-2 pb-2">
+          <div className="truncate text-xs font-medium">
+            Workspace
           </div>
 
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-xs font-medium">
-              Alia Lab
-            </div>
-            <div className="truncate text-[11px] text-muted-foreground">
-              Workspace
-            </div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">
+            Signed in
           </div>
-        </button>
+        </div>
+
+        <form action={signOut}>
+          <button
+            type="submit"
+            className="flex h-9 w-full items-center rounded-md px-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            Sign out
+          </button>
+        </form>
       </div>
     </aside>
   );

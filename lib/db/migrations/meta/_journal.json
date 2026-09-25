@@ -8,6 +8,20 @@
       "when": 1726443359662,
       "tag": "0000_soft_the_anarchist",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790365833760,
+      "tag": "0001_illegal_mysterio",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790367950327,
+      "tag": "0002_brown_agent_brand",
+      "breakpoints": true
     }
   ]
 }

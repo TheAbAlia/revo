@@ -189,6 +189,7 @@ export const signUp = validatedAction(signUpSchema, async (data, formData) => {
 
 export async function signOut() {
   (await cookies()).delete('session');
+  redirect('/sign-in');
 }
 
 const updatePasswordSchema = z.object({

@@ -1,12 +1,16 @@
 import {
+  boolean,
+  check,
+  index,
+  integer,
   pgTable,
   serial,
-  varchar,
   text,
   timestamp,
-  integer,
+  uniqueIndex,
+  varchar,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -140,3 +144,310 @@ export enum ActivityType {
   INVITE_TEAM_MEMBER = 'INVITE_TEAM_MEMBER',
   ACCEPT_INVITATION = 'ACCEPT_INVITATION',
 }
+
+// -----------------------------------------------------------------------------
+// Revo product domain
+// -----------------------------------------------------------------------------
+
+export const organizations = pgTable('organizations', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 160 }).notNull(),
+  slug: varchar('slug', { length: 120 }).notNull().unique(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const organizationMembers = pgTable(
+  'organization_members',
+  {
+    id: serial('id').primaryKey(),
+
+    organizationId: integer('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+
+    role: varchar('role', { length: 30 }).notNull().default('member'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('organization_members_org_user_unique').on(
+      table.organizationId,
+      table.userId
+    ),
+    index('organization_members_user_idx').on(table.userId),
+  ]
+);
+
+export const locations = pgTable('locations', {
+  id: serial('id').primaryKey(),
+
+  organizationId: integer('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  name: varchar('name', { length: 160 }).notNull(),
+
+  provider: varchar('provider', { length: 30 }),
+  externalId: text('external_id'),
+
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const brandVoices = pgTable('brand_voices', {
+  id: serial('id').primaryKey(),
+
+  organizationId: integer('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+
+  name: varchar('name', { length: 100 }).notNull(),
+  instructions: text('instructions').notNull(),
+
+  isDefault: boolean('is_default').notNull().default(false),
+
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const reviews = pgTable(
+  'reviews',
+  {
+    id: serial('id').primaryKey(),
+
+    organizationId: integer('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+
+    locationId: integer('location_id')
+      .notNull()
+      .references(() => locations.id, { onDelete: 'cascade' }),
+
+    provider: varchar('provider', { length: 30 }).notNull(),
+    externalId: text('external_id').notNull(),
+
+    authorName: varchar('author_name', { length: 160 }).notNull(),
+    authorInitials: varchar('author_initials', { length: 10 }).notNull(),
+
+    rating: integer('rating').notNull(),
+    content: text('content').notNull(),
+
+    receivedAt: timestamp('received_at').notNull(),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('reviews_org_provider_external_id_unique').on(
+      table.organizationId,
+      table.provider,
+      table.externalId
+    ),
+    index('reviews_organization_received_at_idx').on(
+      table.organizationId,
+      table.receivedAt
+    ),
+    index('reviews_location_received_at_idx').on(
+      table.locationId,
+      table.receivedAt
+    ),
+    check(
+      'reviews_rating_check',
+      sql`${table.rating} >= 1 AND ${table.rating} <= 5`
+    ),
+  ]
+);
+
+export const responses = pgTable(
+  'responses',
+  {
+    id: serial('id').primaryKey(),
+
+    organizationId: integer('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+
+    reviewId: integer('review_id')
+      .notNull()
+      .references(() => reviews.id, { onDelete: 'cascade' }),
+
+    content: text('content').notNull(),
+
+    status: varchar('status', { length: 30 })
+      .notNull()
+      .default('draft'),
+
+    generatedByAI: boolean('generated_by_ai')
+      .notNull()
+      .default(false),
+
+    approvedAt: timestamp('approved_at'),
+    publishedAt: timestamp('published_at'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('responses_organization_review_unique').on(
+      table.organizationId,
+      table.reviewId
+    ),
+  ]
+);
+
+export const aiResponseGenerations = pgTable(
+  'ai_response_generations',
+  {
+    id: serial('id').primaryKey(),
+
+    organizationId: integer('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+
+    reviewId: integer('review_id')
+      .notNull()
+      .references(() => reviews.id, { onDelete: 'cascade' }),
+
+    content: text('content').notNull(),
+
+    provider: varchar('provider', { length: 50 }).notNull(),
+    model: varchar('model', { length: 100 }).notNull(),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  }
+);
+
+// -----------------------------------------------------------------------------
+// Revo relations
+// -----------------------------------------------------------------------------
+
+export const organizationsRelations = relations(
+  organizations,
+  ({ many }) => ({
+    members: many(organizationMembers),
+    locations: many(locations),
+    brandVoices: many(brandVoices),
+    reviews: many(reviews),
+    responses: many(responses),
+    aiResponseGenerations: many(aiResponseGenerations),
+  })
+);
+
+export const organizationMembersRelations = relations(
+  organizationMembers,
+  ({ one }) => ({
+    organization: one(organizations, {
+      fields: [organizationMembers.organizationId],
+      references: [organizations.id],
+    }),
+
+    user: one(users, {
+      fields: [organizationMembers.userId],
+      references: [users.id],
+    }),
+  })
+);
+
+export const locationsRelations = relations(
+  locations,
+  ({ one, many }) => ({
+    organization: one(organizations, {
+      fields: [locations.organizationId],
+      references: [organizations.id],
+    }),
+
+    reviews: many(reviews),
+  })
+);
+
+export const brandVoicesRelations = relations(
+  brandVoices,
+  ({ one }) => ({
+    organization: one(organizations, {
+      fields: [brandVoices.organizationId],
+      references: [organizations.id],
+    }),
+  })
+);
+
+export const reviewsRelations = relations(
+  reviews,
+  ({ one, many }) => ({
+    organization: one(organizations, {
+      fields: [reviews.organizationId],
+      references: [organizations.id],
+    }),
+
+    location: one(locations, {
+      fields: [reviews.locationId],
+      references: [locations.id],
+    }),
+
+    responses: many(responses),
+    aiResponseGenerations: many(aiResponseGenerations),
+  })
+);
+
+export const responsesRelations = relations(
+  responses,
+  ({ one }) => ({
+    organization: one(organizations, {
+      fields: [responses.organizationId],
+      references: [organizations.id],
+    }),
+
+    review: one(reviews, {
+      fields: [responses.reviewId],
+      references: [reviews.id],
+    }),
+  })
+);
+
+export const aiResponseGenerationsRelations = relations(
+  aiResponseGenerations,
+  ({ one }) => ({
+    organization: one(organizations, {
+      fields: [aiResponseGenerations.organizationId],
+      references: [organizations.id],
+    }),
+
+    review: one(reviews, {
+      fields: [aiResponseGenerations.reviewId],
+      references: [reviews.id],
+    }),
+  })
+);
+
+// -----------------------------------------------------------------------------
+// Revo inferred database types
+// -----------------------------------------------------------------------------
+
+export type Organization = typeof organizations.$inferSelect;
+export type NewOrganization = typeof organizations.$inferInsert;
+
+export type OrganizationMember =
+  typeof organizationMembers.$inferSelect;
+export type NewOrganizationMember =
+  typeof organizationMembers.$inferInsert;
+
+export type Location = typeof locations.$inferSelect;
+export type NewLocation = typeof locations.$inferInsert;
+
+export type BrandVoice = typeof brandVoices.$inferSelect;
+export type NewBrandVoice = typeof brandVoices.$inferInsert;
+
+export type ReviewRecord = typeof reviews.$inferSelect;
+export type NewReviewRecord = typeof reviews.$inferInsert;
+
+export type ResponseRecord = typeof responses.$inferSelect;
+export type NewResponseRecord = typeof responses.$inferInsert;
+
+export type AIResponseGenerationRecord =
+  typeof aiResponseGenerations.$inferSelect;
+export type NewAIResponseGenerationRecord =
+  typeof aiResponseGenerations.$inferInsert;
