@@ -17,7 +17,6 @@ const primaryNavigation = [
     label: 'Inbox',
     href: '/',
     icon: Inbox,
-    count: 12
   },
   {
     label: 'Analytics',
@@ -97,7 +96,7 @@ function NavItem({
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ organizationName, inboxCount }: { organizationName: string; inboxCount: number }) {
   return (
     <aside className="flex h-screen w-[232px] shrink-0 flex-col border-r bg-surface px-3 py-4">
       <div className="mb-7 flex h-8 items-center gap-2 px-2">
@@ -112,7 +111,7 @@ export function Sidebar() {
 
       <nav className="space-y-1">
         {primaryNavigation.map((item) => (
-          <NavItem key={item.label} {...item} />
+          <NavItem key={item.label} {...item} count={item.href === '/' ? inboxCount : undefined} />
         ))}
       </nav>
 
@@ -120,14 +119,14 @@ export function Sidebar() {
 
       <nav className="space-y-1">
         {secondaryNavigation.map((item) => (
-          <NavItem key={item.label} {...item} />
+          <NavItem key={item.label} {...item} count={item.href === '/' ? inboxCount : undefined} />
         ))}
       </nav>
 
       <div className="mt-auto border-t pt-3">
         <div className="px-2 pb-2">
           <div className="truncate text-xs font-medium">
-            Workspace
+              {organizationName}
           </div>
 
           <div className="mt-0.5 text-[11px] text-muted-foreground">

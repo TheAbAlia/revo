@@ -3,13 +3,20 @@ import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
 
 export function AppShell({
-  children
+  children,
+  organizationName,
+  inboxCount
 }: {
   children: ReactNode;
+  organizationName: string;
+  inboxCount: number;
 }) {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
+      <Sidebar
+        organizationName={organizationName}
+        inboxCount={inboxCount}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />

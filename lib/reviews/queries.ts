@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import {
   locations,
@@ -86,4 +86,29 @@ export async function getReviewInbox(
 
     locationName: row.locationName,
   }));
+}
+
+export async function getUnansweredReviewCount(
+  organizationId: number
+): Promise<number> {
+  const [result] = await db
+    .select({
+      count: count(reviews.id),
+    })
+    .from(reviews)
+    .leftJoin(
+      responses,
+      and(
+        eq(reviews.id, responses.reviewId),
+        eq(responses.organizationId, organizationId)
+      )
+    )
+    .where(
+      and(
+        eq(reviews.organizationId, organizationId),
+        isNull(responses.id)
+      )
+    );
+
+  return result?.count ?? 0;
 }
