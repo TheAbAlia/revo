@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { getOrganizationForUser } from '@/lib/db/queries';
+import { exchangeGoogleAuthorizationCode } from '@/lib/integrations/google/oauth';
 
 const OAUTH_STATE_COOKIE = 'revo_google_oauth_state';
 
@@ -57,8 +58,23 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({
-    ok: true,
-    message: 'Google OAuth callback validated',
-  });
+  try {
+    const tokens = await exchangeGoogleAuthorizationCode(code);
+
+    return NextResponse.json({
+      ok: true,
+      message: 'Google OAuth token exchange succeeded',
+      accessTokenReceived: Boolean(tokens.accessToken),
+      refreshTokenReceived: Boolean(tokens.refreshToken),
+      expiresIn: tokens.expiresIn,
+      scope: tokens.scope,
+    });
+  } catch (error) {
+    console.error('Google OAuth token exchange failed', error);
+
+    return NextResponse.json(
+      { error: 'Google OAuth token exchange failed' },
+      { status: 502 }
+    );
+  }
 }

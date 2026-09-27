@@ -53,3 +53,68 @@ export function createGoogleAuthorizationUrl(state: string): URL {
 
   return url;
 }
+
+const GOOGLE_TOKEN_ENDPOINT =
+  'https://oauth2.googleapis.com/token';
+
+type GoogleTokenResponse = {
+  access_token?: string;
+  expires_in?: number;
+  refresh_token?: string;
+  scope?: string;
+  token_type?: string;
+  error?: string;
+  error_description?: string;
+};
+
+export async function exchangeGoogleAuthorizationCode(
+  code: string
+) {
+  const normalizedCode = code.trim();
+
+  if (!normalizedCode) {
+    throw new Error('Google authorization code is required');
+  }
+
+  const { clientId, clientSecret, redirectUri } =
+    getGoogleOAuthTokenConfig();
+
+  const response = await fetch(GOOGLE_TOKEN_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      code: normalizedCode,
+      grant_type: 'authorization_code',
+      redirect_uri: redirectUri,
+    }),
+    cache: 'no-store',
+  });
+
+  const data = (await response.json()) as GoogleTokenResponse;
+
+  if (!response.ok) {
+    throw new Error(
+      data.error_description ||
+        data.error ||
+        'Google token exchange failed'
+    );
+  }
+
+  if (!data.access_token) {
+    throw new Error(
+      'Google token exchange returned no access token'
+    );
+  }
+
+  return {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token ?? null,
+    expiresIn: data.expires_in ?? null,
+    scope: data.scope ?? null,
+    tokenType: data.token_type ?? null,
+  };
+}
