@@ -17,7 +17,7 @@ export type ReviewViewModel = {
   locationLabel: string;
   receivedAtLabel: string;
 
-  responseStatus: ResponseStatus | 'unanswered';
+  responseStatus: ResponseStatus | 'unanswered' | 'generating';
   response: ReviewResponse | null;
 };
 
@@ -71,7 +71,9 @@ export function toReviewViewModel(
 
     receivedAtLabel: formatReceivedAt(review.receivedAt),
 
-    responseStatus: response?.status ?? 'unanswered',
+    responseStatus:
+      response?.status ??
+      (item.isGeneratingResponse ? 'generating' : 'unanswered'),
     response
   };
 }

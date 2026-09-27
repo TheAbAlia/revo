@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Building2,
   Filter,
@@ -17,7 +18,24 @@ export function ReviewInbox({
 }: {
   items: ReviewWithResponse[];
 }) {
+  const router = useRouter();
   const reviews = items.map(toReviewViewModel);
+
+  const hasGeneratingResponse = reviews.some(
+    (review) => review.responseStatus === 'generating'
+  );
+
+  useEffect(() => {
+    if (!hasGeneratingResponse) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      router.refresh();
+    }, 2000);
+
+    return () => window.clearInterval(interval);
+  }, [hasGeneratingResponse, router]);
 
   const [selectedId, setSelectedId] = useState(reviews[0]?.id);
 

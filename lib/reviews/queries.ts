@@ -1,6 +1,7 @@
-import { and, count, desc, eq, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import {
+  jobs,
   locations,
   responses,
   reviews,
@@ -41,14 +42,50 @@ export async function getReviewInbox(
     .from(reviews)
     .innerJoin(
       locations,
-      eq(reviews.locationId, locations.id)
+      and(
+        eq(reviews.locationId, locations.id),
+        eq(locations.organizationId, organizationId)
+      )
     )
     .leftJoin(
       responses,
-      eq(reviews.id, responses.reviewId)
+      and(
+        eq(reviews.id, responses.reviewId),
+        eq(responses.organizationId, organizationId)
+      )
     )
     .where(eq(reviews.organizationId, organizationId))
     .orderBy(desc(reviews.receivedAt));
+
+  const activeGenerationJobs = await db
+    .select({
+      payload: jobs.payload
+    })
+    .from(jobs)
+    .where(
+      and(
+        eq(jobs.organizationId, organizationId),
+        eq(jobs.type, 'generate-ai-draft'),
+        inArray(jobs.status, ['pending', 'processing'])
+      )
+    );
+
+  const generatingReviewIds = new Set(
+    activeGenerationJobs.flatMap((job) => {
+      const payload = job.payload;
+
+      if (
+        typeof payload !== 'object' ||
+        payload === null ||
+        !('reviewId' in payload) ||
+        typeof payload.reviewId !== 'number'
+      ) {
+        return [];
+      }
+
+      return [payload.reviewId];
+    })
+  );
 
   return rows.map((row) => ({
     review: {
@@ -85,6 +122,9 @@ export async function getReviewInbox(
       : null,
 
     locationName: row.locationName,
+    isGeneratingResponse:
+      !row.response?.id &&
+      generatingReviewIds.has(row.review.id),
   }));
 }
 

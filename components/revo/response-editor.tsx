@@ -14,16 +14,19 @@ import {
   Check,
   ChevronDown,
   RefreshCw,
+  LoaderCircle,
   Send,
   Sparkles
 } from 'lucide-react';
 
 export function ResponseEditor({
   reviewId,
-  response: initialResponse
+  response: initialResponse,
+  isGenerating
 }: {
   reviewId: string;
   response: ReviewResponse | null;
+  isGenerating: boolean;
 }) {
   const [content, setContent] = useState(
     initialResponse?.content ?? ''
@@ -85,6 +88,24 @@ export function ResponseEditor({
       await saveResponseDraft(reviewId, nextContent);
     });
   };
+
+  if (!content && isGenerating) {
+    return (
+      <div className="flex min-h-[220px] flex-col items-center justify-center px-8 text-center">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg border bg-surface">
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+        </div>
+
+        <h3 className="mt-4 text-[13px] font-semibold">
+          Generating response
+        </h3>
+
+        <p className="mt-1 max-w-[300px] text-xs leading-5 text-muted-foreground">
+          Revo is preparing a draft using your brand voice and this review.
+        </p>
+      </div>
+    );
+  }
 
   if (!content) {
     return (

@@ -73,6 +73,7 @@ export function ReviewDetail({
             <ResponseEditor
               reviewId={review.id}
               response={review.response}
+              isGenerating={review.responseStatus === 'generating'}
             />
           </div>
         </section>

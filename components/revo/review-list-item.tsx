@@ -1,5 +1,5 @@
 import type { ReviewViewModel } from '@/lib/reviews/view-model';
-import { Check, MessageSquareText, Star } from 'lucide-react';
+import { Check, LoaderCircle, MessageSquareText, Star } from 'lucide-react';
 
 function Stars({ rating }: { rating: number }) {
   return (
@@ -57,6 +57,10 @@ export function ReviewListItem({
 
           <div className="mt-1.5 flex items-center justify-between gap-2">
             <Stars rating={review.rating} />
+
+            {review.responseStatus === 'generating' && (
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+            )}
 
             {review.responseStatus === 'draft' && (
               <MessageSquareText className="h-3.5 w-3.5 text-muted-foreground" />
