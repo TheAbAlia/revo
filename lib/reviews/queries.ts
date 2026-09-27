@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import {
   jobs,
@@ -57,35 +57,49 @@ export async function getReviewInbox(
     .where(eq(reviews.organizationId, organizationId))
     .orderBy(desc(reviews.receivedAt));
 
-  const activeGenerationJobs = await db
+  const generationJobs = await db
     .select({
-      payload: jobs.payload
+      payload: jobs.payload,
+      status: jobs.status,
+      lastError: jobs.lastError,
+      createdAt: jobs.createdAt
     })
     .from(jobs)
     .where(
       and(
         eq(jobs.organizationId, organizationId),
-        eq(jobs.type, 'generate-ai-draft'),
-        inArray(jobs.status, ['pending', 'processing'])
+        eq(jobs.type, 'generate-ai-draft')
       )
-    );
+    )
+    .orderBy(desc(jobs.createdAt));
 
-  const generatingReviewIds = new Set(
-    activeGenerationJobs.flatMap((job) => {
-      const payload = job.payload;
+  const latestGenerationJobByReviewId = new Map<
+    number,
+    {
+      status: string;
+      lastError: string | null;
+    }
+  >();
 
-      if (
-        typeof payload !== 'object' ||
-        payload === null ||
-        !('reviewId' in payload) ||
-        typeof payload.reviewId !== 'number'
-      ) {
-        return [];
-      }
+  for (const job of generationJobs) {
+    const payload = job.payload;
 
-      return [payload.reviewId];
-    })
-  );
+    if (
+      typeof payload !== 'object' ||
+      payload === null ||
+      !('reviewId' in payload) ||
+      typeof payload.reviewId !== 'number'
+    ) {
+      continue;
+    }
+
+    if (!latestGenerationJobByReviewId.has(payload.reviewId)) {
+      latestGenerationJobByReviewId.set(payload.reviewId, {
+        status: job.status,
+        lastError: job.lastError
+      });
+    }
+  }
 
   return rows.map((row) => ({
     review: {
@@ -122,9 +136,29 @@ export async function getReviewInbox(
       : null,
 
     locationName: row.locationName,
-    isGeneratingResponse:
-      !row.response?.id &&
-      generatingReviewIds.has(row.review.id),
+    responseGenerationStatus: (() => {
+      const job = latestGenerationJobByReviewId.get(row.review.id);
+
+      if (!job) {
+        return null;
+      }
+
+      if (job.status === 'pending') {
+        return 'queued' as const;
+      }
+
+      if (job.status === 'processing') {
+        return 'generating' as const;
+      }
+
+      if (job.status === 'failed') {
+        return 'failed' as const;
+      }
+
+      return null;
+    })(),
+    responseGenerationError:
+      latestGenerationJobByReviewId.get(row.review.id)?.lastError ?? null
   }));
 }
 

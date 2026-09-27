@@ -22,11 +22,17 @@ import {
 export function ResponseEditor({
   reviewId,
   response: initialResponse,
-  isGenerating
+  generationStatus,
+  generationError
 }: {
   reviewId: string;
   response: ReviewResponse | null;
-  isGenerating: boolean;
+  generationStatus:
+    | 'queued'
+    | 'generating'
+    | 'failed'
+    | null;
+  generationError: string | null;
 }) {
   const [content, setContent] = useState(
     initialResponse?.content ?? ''
@@ -42,16 +48,17 @@ export function ResponseEditor({
   }, [initialResponse]);
 
   const [isPending, startTransition] = useTransition();
-  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generationActionError, setGenerationActionError] =
+    useState<string | null>(null);
 
   const generate = () => {
-    setGenerationError(null);
+    setGenerationActionError(null);
 
     startTransition(async () => {
       const result = await generateResponse(reviewId);
 
       if (!result.success) {
-        setGenerationError(result.error);
+        setGenerationActionError(result.error);
       }
     });
   };
@@ -85,7 +92,11 @@ export function ResponseEditor({
     });
   };
 
-  if (!content && isGenerating) {
+  const generationActive =
+    generationStatus === 'queued' ||
+    generationStatus === 'generating';
+
+  if (!content && generationActive) {
     return (
       <div className="flex min-h-[220px] flex-col items-center justify-center px-8 text-center">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg border bg-surface">
@@ -122,16 +133,20 @@ export function ResponseEditor({
         <button
           type="button"
           onClick={generate}
-          disabled={isPending || isGenerating}
+          disabled={isPending || generationActive}
           className="mt-5 flex h-8 items-center gap-2 rounded-md bg-foreground px-3 text-xs font-medium text-background transition-opacity hover:opacity-90"
         >
           <Sparkles className="h-3.5 w-3.5" />
-          {isPending ? 'Generating...' : 'Generate response'}
+          {generationStatus === 'queued'
+            ? 'Queued...'
+            : generationStatus === 'generating' || isPending
+              ? 'Generating...'
+              : 'Generate response'}
         </button>
 
-        {generationError && (
+        {(generationError || generationActionError) && (
           <p className="mt-3 text-xs text-destructive">
-            {generationError}
+            {generationError || generationActionError}
           </p>
         )}
       </div>
@@ -165,18 +180,22 @@ export function ResponseEditor({
           <button
             type="button"
             onClick={generate}
-            disabled={isPending || isGenerating}
+            disabled={isPending || generationActive}
             className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"
           >
             <RefreshCw className="h-3 w-3" />
-            {isPending ? 'Generating...' : 'Regenerate'}
+            {generationStatus === 'queued'
+              ? 'Queued...'
+              : generationStatus === 'generating' || isPending
+                ? 'Generating...'
+                : 'Regenerate'}
           </button>
         )}
       </div>
 
-      {generationError && (
+      {(generationError || generationActionError) && (
         <div className="border-b px-4 py-2 text-xs text-destructive">
-          {generationError}
+          {generationError || generationActionError}
         </div>
       )}
 

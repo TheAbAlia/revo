@@ -58,7 +58,7 @@ export function ReviewListItem({
           <div className="mt-1.5 flex items-center justify-between gap-2">
             <Stars rating={review.rating} />
 
-            {review.responseStatus === 'generating' && (
+            {review.generationStatus === 'generating' && (
               <LoaderCircle className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
             )}
 

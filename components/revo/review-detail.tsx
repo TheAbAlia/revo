@@ -73,7 +73,8 @@ export function ReviewDetail({
             <ResponseEditor
               reviewId={review.id}
               response={review.response}
-              isGenerating={review.responseStatus === 'generating'}
+              generationStatus={review.generationStatus}
+              generationError={review.generationError}
             />
           </div>
         </section>

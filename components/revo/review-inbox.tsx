@@ -22,7 +22,9 @@ export function ReviewInbox({
   const reviews = items.map(toReviewViewModel);
 
   const hasGeneratingResponse = reviews.some(
-    (review) => review.responseStatus === 'generating'
+    (review) =>
+      review.generationStatus === 'queued' ||
+      review.generationStatus === 'generating'
   );
 
   useEffect(() => {

@@ -61,5 +61,10 @@ export type ReviewWithResponse = {
   review: Review;
   response: ReviewResponse | null;
   locationName: string;
-  isGeneratingResponse: boolean;
+  responseGenerationStatus:
+    | 'queued'
+    | 'generating'
+    | 'failed'
+    | null;
+  responseGenerationError: string | null;
 };
