@@ -7,6 +7,7 @@ import { publishProviderResponse } from '@/lib/integrations/providers/publish-re
 
 type GenerateAIDraftPayload = {
   reviewId: number;
+  force: boolean;
 };
 
 function parseGenerateAIDraftPayload(
@@ -23,8 +24,20 @@ function parseGenerateAIDraftPayload(
     throw new PermanentJobError('Invalid generate-ai-draft job payload');
   }
 
+  const force =
+    'force' in payload
+      ? payload.force
+      : false;
+
+  if (typeof force !== 'boolean') {
+    throw new PermanentJobError(
+      'Invalid generate-ai-draft job payload'
+    );
+  }
+
   return {
-    reviewId: payload.reviewId
+    reviewId: payload.reviewId,
+    force
   };
 }
 
@@ -87,7 +100,8 @@ export async function processJob(
         job.organizationId,
         payload.reviewId,
         {
-          skipIfResponseExists: true
+          skipIfResponseExists: !payload.force,
+          replaceExistingResponse: payload.force
         }
       );
 

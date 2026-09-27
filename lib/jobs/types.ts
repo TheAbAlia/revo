@@ -2,6 +2,7 @@ export type GenerateAIDraftJob = {
   type: 'generate-ai-draft';
   payload: {
     reviewId: number;
+    force?: boolean;
   };
 };
 

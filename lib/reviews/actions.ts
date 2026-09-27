@@ -79,7 +79,8 @@ export async function generateResponse(reviewId: string) {
       type: 'generate-ai-draft',
       dedupeKey: `generate-ai-draft:${organizationId}:${numericReviewId}`,
       payload: {
-        reviewId: numericReviewId
+        reviewId: numericReviewId,
+        force: true
       }
     });
 
@@ -131,7 +132,12 @@ export async function retryResponseGeneration(
       type: 'generate-ai-draft',
       dedupeKey: `generate-ai-draft:${organizationId}:${numericReviewId}`,
       payload: {
-        reviewId: numericReviewId
+        reviewId: numericReviewId,
+        force:
+          typeof latestJob.payload === 'object' &&
+          latestJob.payload !== null &&
+          'force' in latestJob.payload &&
+          latestJob.payload.force === true
       }
     });
 

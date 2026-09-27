@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import { jobs } from '@/lib/db/schema';
 
@@ -12,6 +12,7 @@ export type JobDetails = {
   id: number;
   organizationId: number;
   type: string;
+  payload: unknown;
   status: JobStatus;
   attempts: number;
   maxAttempts: number;
@@ -32,6 +33,7 @@ export async function getLatestGenerationJob(
       id: jobs.id,
       organizationId: jobs.organizationId,
       type: jobs.type,
+      payload: jobs.payload,
       status: jobs.status,
       attempts: jobs.attempts,
       maxAttempts: jobs.maxAttempts,
@@ -48,8 +50,8 @@ export async function getLatestGenerationJob(
         eq(jobs.organizationId, organizationId),
         eq(jobs.type, 'generate-ai-draft'),
         eq(
-          jobs.payload,
-          { reviewId }
+          sql`${jobs.payload}->>'reviewId'`,
+          String(reviewId)
         )
       )
     )
@@ -77,6 +79,7 @@ export async function getJob(
       id: jobs.id,
       organizationId: jobs.organizationId,
       type: jobs.type,
+      payload: jobs.payload,
       status: jobs.status,
       attempts: jobs.attempts,
       maxAttempts: jobs.maxAttempts,

@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { createWorkerDb } from '@/lib/db/worker';
 import {
   aiResponseGenerations,
@@ -11,6 +11,7 @@ import {
   generateReviewResponse,
   type ReviewResponseGenerationResult
 } from '@/lib/ai/review-response';
+import { PermanentJobError } from '@/lib/jobs/errors';
 
 export function generateDraftForReview(
   db: ReturnType<typeof createWorkerDb>['db'],
@@ -23,7 +24,8 @@ export function generateDraftForReview(
   organizationId: number,
   reviewId: number,
   options: {
-    skipIfResponseExists: true;
+    skipIfResponseExists?: boolean;
+    replaceExistingResponse?: boolean;
   }
 ): Promise<ReviewResponseGenerationResult | null>;
 
@@ -33,6 +35,7 @@ export async function generateDraftForReview(
   reviewId: number,
   options?: {
     skipIfResponseExists?: boolean;
+    replaceExistingResponse?: boolean;
   }
 ): Promise<ReviewResponseGenerationResult | null> {
   const [review] = await db
@@ -76,21 +79,34 @@ export async function generateDraftForReview(
     )
     .limit(1);
 
-  if (options?.skipIfResponseExists) {
-    const [existingResponse] = await db
-      .select({ id: responses.id })
-      .from(responses)
-      .where(
-        and(
-          eq(responses.organizationId, organizationId),
-          eq(responses.reviewId, reviewId)
-        )
+  const [existingResponse] = await db
+    .select({
+      id: responses.id,
+      publishedAt: responses.publishedAt
+    })
+    .from(responses)
+    .where(
+      and(
+        eq(responses.organizationId, organizationId),
+        eq(responses.reviewId, reviewId)
       )
-      .limit(1);
+    )
+    .limit(1);
 
-    if (existingResponse) {
-      return null;
-    }
+  if (
+    options?.skipIfResponseExists &&
+    existingResponse
+  ) {
+    return null;
+  }
+
+  if (
+    options?.replaceExistingResponse &&
+    existingResponse?.publishedAt
+  ) {
+    throw new PermanentJobError(
+      'Published responses cannot be regenerated'
+    );
   }
 
   const generation = await generateReviewResponse({
@@ -109,6 +125,34 @@ export async function generateDraftForReview(
       provider: generation.provider,
       model: generation.model
     });
+
+    if (
+      options?.replaceExistingResponse &&
+      existingResponse
+    ) {
+      await tx
+        .update(responses)
+        .set({
+          content: generation.content,
+          status: 'draft',
+          generatedByAI: true,
+          approvedAt: null,
+          publishedAt: null,
+          updatedAt: new Date()
+        })
+        .where(
+          and(
+            eq(responses.id, existingResponse.id),
+            eq(
+              responses.organizationId,
+              organizationId
+            ),
+            isNull(responses.publishedAt)
+          )
+        );
+
+      return;
+    }
 
     await tx
       .insert(responses)

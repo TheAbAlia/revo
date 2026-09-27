@@ -484,3 +484,65 @@ test('ordinary job errors remain retryable with backoff', async () => {
     await workerDb.client.end();
   }
 });
+
+test('worker permanently rejects invalid generation force value', async () => {
+  const workerDb = createWorkerDb();
+  let testJobId: number | null = null;
+
+  try {
+    const [job] = await workerDb.db
+      .insert(jobs)
+      .values({
+        organizationId: 2,
+        type: 'generate-ai-draft',
+        payload: {
+          reviewId: 18,
+          force: 'yes'
+        },
+        availableAt: new Date(),
+        maxAttempts: 3
+      })
+      .returning({
+        id: jobs.id
+      });
+
+    assert.ok(job);
+    testJobId = job.id;
+
+    const result = await runNextJob(
+      workerDb.db,
+      'invalid-force-test-worker'
+    );
+
+    assert.equal(result.status, 'failed');
+    assert.equal(
+      result.error,
+      'Invalid generate-ai-draft job payload'
+    );
+
+    const [storedJob] = await workerDb.db
+      .select({
+        status: jobs.status,
+        attempts: jobs.attempts,
+        lastError: jobs.lastError
+      })
+      .from(jobs)
+      .where(eq(jobs.id, job.id))
+      .limit(1);
+
+    assert.equal(storedJob?.status, 'failed');
+    assert.equal(storedJob?.attempts, 1);
+    assert.equal(
+      storedJob?.lastError,
+      'Invalid generate-ai-draft job payload'
+    );
+  } finally {
+    if (testJobId !== null) {
+      await workerDb.db
+        .delete(jobs)
+        .where(eq(jobs.id, testJobId));
+    }
+
+    await workerDb.client.end();
+  }
+});
