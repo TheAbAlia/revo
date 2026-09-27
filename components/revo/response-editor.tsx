@@ -8,6 +8,7 @@ import type {
 import {
   approveResponse,
   generateResponse,
+  retryResponseGeneration,
   saveResponseDraft
 } from '@/lib/reviews/actions';
 import {
@@ -56,6 +57,18 @@ export function ResponseEditor({
 
     startTransition(async () => {
       const result = await generateResponse(reviewId);
+
+      if (!result.success) {
+        setGenerationActionError(result.error);
+      }
+    });
+  };
+
+  const retryGeneration = () => {
+    setGenerationActionError(null);
+
+    startTransition(async () => {
+      const result = await retryResponseGeneration(reviewId);
 
       if (!result.success) {
         setGenerationActionError(result.error);
@@ -132,7 +145,11 @@ export function ResponseEditor({
 
         <button
           type="button"
-          onClick={generate}
+          onClick={
+            generationStatus === 'failed'
+              ? retryGeneration
+              : generate
+          }
           disabled={isPending || generationActive}
           className="mt-5 flex h-8 items-center gap-2 rounded-md bg-foreground px-3 text-xs font-medium text-background transition-opacity hover:opacity-90"
         >
@@ -141,7 +158,9 @@ export function ResponseEditor({
             ? 'Queued...'
             : generationStatus === 'generating' || isPending
               ? 'Generating...'
-              : 'Generate response'}
+              : generationStatus === 'failed'
+                ? 'Retry generation'
+                : 'Generate response'}
         </button>
 
         {(generationError || generationActionError) && (

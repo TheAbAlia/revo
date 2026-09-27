@@ -10,6 +10,7 @@ import {
 } from '@/lib/db/schema';
 import { getOrganizationForUser } from '@/lib/db/queries';
 import { enqueueJob } from '@/lib/jobs/enqueue';
+import { getLatestGenerationJob } from '@/lib/jobs/queries';
 
 async function getAuthorizedReview(reviewId: number) {
   const membership = await getOrganizationForUser();
@@ -93,6 +94,58 @@ export async function generateResponse(reviewId: string) {
     return {
       success: false as const,
       error: 'Could not start response generation. Please try again.'
+    };
+  }
+}
+
+export async function retryResponseGeneration(
+  reviewId: string
+) {
+  const numericReviewId = Number(reviewId);
+
+  if (!Number.isInteger(numericReviewId)) {
+    throw new Error('Invalid review');
+  }
+
+  const { organizationId } =
+    await getAuthorizedReview(numericReviewId);
+
+  const latestJob = await getLatestGenerationJob(
+    organizationId,
+    numericReviewId
+  );
+
+  if (!latestJob || latestJob.status !== 'failed') {
+    return {
+      success: false as const,
+      error: 'There is no failed generation to retry.'
+    };
+  }
+
+  try {
+    await enqueueJob({
+      organizationId,
+      type: 'generate-ai-draft',
+      dedupeKey: `generate-ai-draft:${organizationId}:${numericReviewId}`,
+      payload: {
+        reviewId: numericReviewId
+      }
+    });
+
+    revalidatePath('/');
+
+    return {
+      success: true as const
+    };
+  } catch (error) {
+    console.error(
+      'Review response generation retry enqueue failed',
+      error instanceof Error ? error.message : 'Unknown error'
+    );
+
+    return {
+      success: false as const,
+      error: 'Could not retry response generation. Please try again.'
     };
   }
 }
