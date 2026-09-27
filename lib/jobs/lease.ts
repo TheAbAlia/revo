@@ -1,7 +1,6 @@
 import type { createWorkerDb } from '@/lib/db/worker';
+import { getJobHeartbeatIntervalMs } from '@/lib/jobs/config';
 import { renewJobLock } from '@/lib/jobs/lifecycle';
-
-const DEFAULT_HEARTBEAT_INTERVAL_MS = 120_000;
 
 export class JobLeaseLostError extends Error {
   constructor(jobId: number, cause?: unknown) {
@@ -13,23 +12,14 @@ export class JobLeaseLostError extends Error {
   }
 }
 
-function getHeartbeatIntervalMs() {
-  const value = Number(
-    process.env.WORKER_HEARTBEAT_INTERVAL_MS
-  );
-
-  if (!Number.isFinite(value) || value < 1000) {
-    return DEFAULT_HEARTBEAT_INTERVAL_MS;
-  }
-
-  return Math.min(value, 300_000);
-}
-
 export function startJobLease(
   db: ReturnType<typeof createWorkerDb>['db'],
   jobId: number,
   workerId: string
 ) {
+  const heartbeatIntervalMs =
+    getJobHeartbeatIntervalMs();
+
   let stopped = false;
   let heartbeatError: JobLeaseLostError | null = null;
   let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -54,7 +44,7 @@ export function startJobLease(
     if (!stopped) {
       timeout = setTimeout(
         runHeartbeat,
-        getHeartbeatIntervalMs()
+        heartbeatIntervalMs
       );
     }
   }
@@ -67,7 +57,7 @@ export function startJobLease(
 
   timeout = setTimeout(
     runHeartbeat,
-    getHeartbeatIntervalMs()
+    getJobHeartbeatIntervalMs()
   );
 
   return {

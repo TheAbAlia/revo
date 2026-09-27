@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { createWorkerDb } from '@/lib/db/worker';
+import { getJobLeaseTimeoutMs } from '@/lib/jobs/config';
 
 export type ClaimedJob = {
   id: number;
@@ -10,7 +11,7 @@ export type ClaimedJob = {
   maxAttempts: number;
 };
 
-const STALE_LOCK_MINUTES = 10;
+const JOB_LEASE_TIMEOUT_MS = getJobLeaseTimeoutMs();
 
 export async function claimNextJob(
   db: ReturnType<typeof createWorkerDb>['db'],
@@ -31,7 +32,7 @@ export async function claimNextJob(
     WHERE status = 'processing'
       AND attempts >= max_attempts
       AND locked_at IS NOT NULL
-      AND locked_at <= NOW() - (${STALE_LOCK_MINUTES} * INTERVAL '1 minute')
+      AND locked_at <= NOW() - (${JOB_LEASE_TIMEOUT_MS} * INTERVAL '1 millisecond')
   `);
 
   const result = await db.execute<{
@@ -62,7 +63,7 @@ export async function claimNextJob(
           (
             status = 'processing'
             AND locked_at IS NOT NULL
-            AND locked_at <= NOW() - (${STALE_LOCK_MINUTES} * INTERVAL '1 minute')
+            AND locked_at <= NOW() - (${JOB_LEASE_TIMEOUT_MS} * INTERVAL '1 millisecond')
           )
         )
       ORDER BY
