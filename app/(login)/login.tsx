@@ -13,6 +13,7 @@ import { ActionState } from '@/lib/auth/middleware';
 export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect');
+  const next = searchParams.get('next');
   const priceId = searchParams.get('priceId');
   const inviteId = searchParams.get('inviteId');
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
@@ -36,6 +37,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <form className="space-y-6" action={formAction}>
           <input type="hidden" name="redirect" value={redirect || ''} />
+          <input type="hidden" name="next" value={next || ''} />
           <input type="hidden" name="priceId" value={priceId || ''} />
           <input type="hidden" name="inviteId" value={inviteId || ''} />
           <div>

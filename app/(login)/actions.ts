@@ -89,6 +89,16 @@ export const signIn = validatedAction(signInSchema, async (data, formData) => {
 
   await setSession(foundUser);
 
+  const next = formData.get('next');
+
+  if (
+    typeof next === 'string' &&
+    next.startsWith('/') &&
+    !next.startsWith('//')
+  ) {
+    redirect(next);
+  }
+
   redirect('/');
 });
 
