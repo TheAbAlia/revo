@@ -18,9 +18,6 @@ import {
   Sparkles
 } from 'lucide-react';
 
-const mockResponse =
-  'Thank you for taking the time to share your experience. We’re glad to hear our team was helpful and that everything went smoothly. We really appreciate your recommendation and look forward to welcoming you again.';
-
 export function ResponseEditor({
   reviewId,
   response: initialResponse
@@ -42,13 +39,21 @@ export function ResponseEditor({
   }, [initialResponse]);
 
   const [isPending, startTransition] = useTransition();
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   const generate = () => {
-    setContent(mockResponse);
-    setStatus('draft');
+    setGenerationError(null);
 
     startTransition(async () => {
-      await generateResponse(reviewId);
+      const result = await generateResponse(reviewId);
+
+      if (!result.success) {
+        setGenerationError(result.error);
+        return;
+      }
+
+      setContent(result.content);
+      setStatus('draft');
     });
   };
 
@@ -104,8 +109,14 @@ export function ResponseEditor({
           className="mt-5 flex h-8 items-center gap-2 rounded-md bg-foreground px-3 text-xs font-medium text-background transition-opacity hover:opacity-90"
         >
           <Sparkles className="h-3.5 w-3.5" />
-          Generate response
+          {isPending ? 'Generating...' : 'Generate response'}
         </button>
+
+        {generationError && (
+          <p className="mt-3 text-xs text-destructive">
+            {generationError}
+          </p>
+        )}
       </div>
     );
   }
@@ -141,10 +152,16 @@ export function ResponseEditor({
             className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"
           >
             <RefreshCw className="h-3 w-3" />
-            Regenerate
+            {isPending ? 'Generating...' : 'Regenerate'}
           </button>
         )}
       </div>
+
+      {generationError && (
+        <div className="border-b px-4 py-2 text-xs text-destructive">
+          {generationError}
+        </div>
+      )}
 
       <textarea
         value={content}

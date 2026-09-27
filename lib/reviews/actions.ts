@@ -84,13 +84,27 @@ export async function generateResponse(reviewId: string) {
     )
     .limit(1);
 
-  const generation = await generateReviewResponse({
-    rating: review.rating,
-    reviewContent: review.content,
-    authorName: review.authorName,
-    locationName: review.locationName,
-    brandVoiceInstructions: brandVoice?.instructions ?? null
-  });
+  let generation;
+
+  try {
+    generation = await generateReviewResponse({
+      rating: review.rating,
+      reviewContent: review.content,
+      authorName: review.authorName,
+      locationName: review.locationName,
+      brandVoiceInstructions: brandVoice?.instructions ?? null
+    });
+  } catch (error) {
+    console.error(
+      'Review response generation failed',
+      error instanceof Error ? error.message : 'Unknown error'
+    );
+
+    return {
+      success: false as const,
+      error: 'Could not generate a response. Please try again.'
+    };
+  }
 
   await db.transaction(async (tx) => {
     await tx.insert(aiResponseGenerations).values({
@@ -143,6 +157,11 @@ export async function generateResponse(reviewId: string) {
   });
 
   revalidatePath('/');
+
+  return {
+    success: true as const,
+    content: generation.content
+  };
 }
 
 export async function saveResponseDraft(
