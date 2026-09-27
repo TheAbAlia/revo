@@ -19,6 +19,7 @@ export async function claimNextJob(
     UPDATE jobs
     SET
       status = 'failed',
+      dedupe_key = NULL,
       locked_at = NULL,
       locked_by = NULL,
       last_error = COALESCE(

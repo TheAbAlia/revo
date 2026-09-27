@@ -43,6 +43,13 @@
       "when": 1790506045326,
       "tag": "0005_thankful_miss_america",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790509841782,
+      "tag": "0006_crazy_argent",
+      "breakpoints": true
     }
   ]
 }

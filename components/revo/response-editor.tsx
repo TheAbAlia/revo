@@ -52,11 +52,7 @@ export function ResponseEditor({
 
       if (!result.success) {
         setGenerationError(result.error);
-        return;
       }
-
-      setContent(result.content);
-      setStatus('draft');
     });
   };
 

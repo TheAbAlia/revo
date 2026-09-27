@@ -9,7 +9,7 @@ import {
   reviews
 } from '@/lib/db/schema';
 import { getOrganizationForUser } from '@/lib/db/queries';
-import { generateDraftForReview } from '@/lib/reviews/generate-draft';
+import { enqueueJob } from '@/lib/jobs/enqueue';
 
 async function getAuthorizedReview(reviewId: number) {
   const membership = await getOrganizationForUser();
@@ -70,26 +70,29 @@ export async function generateResponse(reviewId: string) {
     await getAuthorizedReview(numericReviewId);
 
   try {
-    const generation = await generateDraftForReview(
+    await enqueueJob({
       organizationId,
-      numericReviewId
-    );
+      type: 'generate-ai-draft',
+      dedupeKey: `generate-ai-draft:${organizationId}:${numericReviewId}`,
+      payload: {
+        reviewId: numericReviewId
+      }
+    });
 
     revalidatePath('/');
 
     return {
-      success: true as const,
-      content: generation.content
+      success: true as const
     };
   } catch (error) {
     console.error(
-      'Review response generation failed',
+      'Review response generation enqueue failed',
       error instanceof Error ? error.message : 'Unknown error'
     );
 
     return {
       success: false as const,
-      error: 'Could not generate a response. Please try again.'
+      error: 'Could not start response generation. Please try again.'
     };
   }
 }

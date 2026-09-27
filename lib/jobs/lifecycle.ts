@@ -10,6 +10,7 @@ export async function completeJob(
     .update(jobs)
     .set({
       status: 'completed',
+      dedupeKey: null,
       lockedAt: null,
       lockedBy: null,
       lastError: null,
@@ -68,6 +69,7 @@ export async function failJob(
     .update(jobs)
     .set({
       status: nextStatus,
+      dedupeKey: exhausted ? null : undefined,
       availableAt: exhausted
         ? new Date()
         : new Date(Date.now() + retryDelayMs),

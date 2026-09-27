@@ -390,6 +390,7 @@ export const jobs = pgTable(
 
     type: varchar('type', { length: 100 }).notNull(),
     payload: jsonb('payload').notNull(),
+    dedupeKey: varchar('dedupe_key', { length: 200 }),
 
     status: varchar('status', { length: 30 })
       .notNull()
@@ -422,6 +423,9 @@ export const jobs = pgTable(
     ),
     index('jobs_organization_idx').on(
       table.organizationId
+    ),
+    uniqueIndex('jobs_dedupe_key_unique').on(
+      table.dedupeKey
     ),
   ]
 );

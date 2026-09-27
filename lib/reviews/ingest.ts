@@ -122,6 +122,7 @@ export async function ingestReview(
       .values({
         organizationId: input.organizationId,
         type: 'generate-ai-draft',
+        dedupeKey: `generate-ai-draft:${input.organizationId}:${review.id}`,
         payload: {
           reviewId: review.id
         }
