@@ -1,4 +1,5 @@
 import {
+  jsonb,
   boolean,
   check,
   index,
@@ -375,6 +376,57 @@ export const aiResponseGenerations = pgTable(
 );
 
 // -----------------------------------------------------------------------------
+// Background jobs
+// -----------------------------------------------------------------------------
+
+export const jobs = pgTable(
+  'jobs',
+  {
+    id: serial('id').primaryKey(),
+
+    organizationId: integer('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+
+    type: varchar('type', { length: 100 }).notNull(),
+    payload: jsonb('payload').notNull(),
+
+    status: varchar('status', { length: 30 })
+      .notNull()
+      .default('pending'),
+
+    attempts: integer('attempts')
+      .notNull()
+      .default(0),
+
+    maxAttempts: integer('max_attempts')
+      .notNull()
+      .default(3),
+
+    availableAt: timestamp('available_at')
+      .notNull()
+      .defaultNow(),
+
+    lockedAt: timestamp('locked_at'),
+    lockedBy: varchar('locked_by', { length: 100 }),
+
+    lastError: text('last_error'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('jobs_pending_idx').on(
+      table.status,
+      table.availableAt
+    ),
+    index('jobs_organization_idx').on(
+      table.organizationId
+    ),
+  ]
+);
+
+// -----------------------------------------------------------------------------
 // Revo relations
 // -----------------------------------------------------------------------------
 
@@ -533,3 +585,6 @@ export type AIResponseGenerationRecord =
   typeof aiResponseGenerations.$inferSelect;
 export type NewAIResponseGenerationRecord =
   typeof aiResponseGenerations.$inferInsert;
+
+export type JobRecord = typeof jobs.$inferSelect;
+export type NewJobRecord = typeof jobs.$inferInsert;

@@ -19,7 +19,7 @@ export type SyncGoogleLocationReviewsResult = {
   received: number;
   created: number;
   existing: number;
-  draftsGenerated: number;
+  draftsQueued: number;
   failed: number;
 };
 
@@ -53,7 +53,7 @@ export async function syncGoogleLocationReviews(
     received: input.reviews.length,
     created: 0,
     existing: 0,
-    draftsGenerated: 0,
+    draftsQueued: 0,
     failed: 0
   };
 
@@ -73,8 +73,8 @@ export async function syncGoogleLocationReviews(
         result.existing += 1;
       }
 
-      if (ingestion.draftGenerated) {
-        result.draftsGenerated += 1;
+      if (ingestion.draftQueued) {
+        result.draftsQueued += 1;
       }
     } catch (error) {
       result.failed += 1;

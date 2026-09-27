@@ -9,12 +9,31 @@ import {
   responses,
   reviews
 } from '@/lib/db/schema';
-import { generateReviewResponse } from '@/lib/ai/review-response';
+import {
+  generateReviewResponse,
+  type ReviewResponseGenerationResult
+} from '@/lib/ai/review-response';
+
+export function generateDraftForReview(
+  organizationId: number,
+  reviewId: number
+): Promise<ReviewResponseGenerationResult>;
+
+export function generateDraftForReview(
+  organizationId: number,
+  reviewId: number,
+  options: {
+    skipIfResponseExists: true;
+  }
+): Promise<ReviewResponseGenerationResult | null>;
 
 export async function generateDraftForReview(
   organizationId: number,
-  reviewId: number
-) {
+  reviewId: number,
+  options?: {
+    skipIfResponseExists?: boolean;
+  }
+): Promise<ReviewResponseGenerationResult | null> {
   const [review] = await db
     .select({
       id: reviews.id,
@@ -55,6 +74,23 @@ export async function generateDraftForReview(
       )
     )
     .limit(1);
+
+  if (options?.skipIfResponseExists) {
+    const [existingResponse] = await db
+      .select({ id: responses.id })
+      .from(responses)
+      .where(
+        and(
+          eq(responses.organizationId, organizationId),
+          eq(responses.reviewId, reviewId)
+        )
+      )
+      .limit(1);
+
+    if (existingResponse) {
+      return null;
+    }
+  }
 
   const generation = await generateReviewResponse({
     rating: review.rating,
