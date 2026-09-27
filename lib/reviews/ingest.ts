@@ -1,7 +1,5 @@
-import 'server-only';
-
 import { and, eq } from 'drizzle-orm';
-import { db } from '@/lib/db/drizzle';
+import type { createWorkerDb } from '@/lib/db/worker';
 import {
   automationSettings,
   jobs,
@@ -24,6 +22,7 @@ export type IngestReviewResult = {
 };
 
 export async function ingestReview(
+  db: ReturnType<typeof createWorkerDb>['db'],
   input: IngestReviewInput
 ): Promise<IngestReviewResult> {
   if (

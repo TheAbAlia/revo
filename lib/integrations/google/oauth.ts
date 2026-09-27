@@ -1,5 +1,3 @@
-import 'server-only';
-
 export const GOOGLE_BUSINESS_SCOPE =
   'https://www.googleapis.com/auth/business.manage';
 
@@ -113,6 +111,56 @@ export async function exchangeGoogleAuthorizationCode(
   return {
     accessToken: data.access_token,
     refreshToken: data.refresh_token ?? null,
+    expiresIn: data.expires_in ?? null,
+    scope: data.scope ?? null,
+    tokenType: data.token_type ?? null,
+  };
+}
+
+export async function refreshGoogleAccessToken(
+  refreshToken: string
+) {
+  const normalizedRefreshToken = refreshToken.trim();
+
+  if (!normalizedRefreshToken) {
+    throw new Error('Google refresh token is required');
+  }
+
+  const { clientId, clientSecret } =
+    getGoogleOAuthTokenConfig();
+
+  const response = await fetch(GOOGLE_TOKEN_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: normalizedRefreshToken,
+      grant_type: 'refresh_token',
+    }),
+    cache: 'no-store',
+  });
+
+  const data = (await response.json()) as GoogleTokenResponse;
+
+  if (!response.ok) {
+    throw new Error(
+      data.error_description ||
+        data.error ||
+        'Google access token refresh failed'
+    );
+  }
+
+  if (!data.access_token) {
+    throw new Error(
+      'Google token refresh returned no access token'
+    );
+  }
+
+  return {
+    accessToken: data.access_token,
     expiresIn: data.expires_in ?? null,
     scope: data.scope ?? null,
     tokenType: data.token_type ?? null,

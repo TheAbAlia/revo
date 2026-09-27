@@ -1,7 +1,5 @@
-import 'server-only';
-
 import { and, eq } from 'drizzle-orm';
-import { db } from '@/lib/db/drizzle';
+import type { createWorkerDb } from '@/lib/db/worker';
 import { locations } from '@/lib/db/schema';
 import {
   normalizeGoogleReview,
@@ -24,6 +22,7 @@ export type SyncGoogleLocationReviewsResult = {
 };
 
 export async function syncGoogleLocationReviews(
+  db: ReturnType<typeof createWorkerDb>['db'],
   input: SyncGoogleLocationReviewsInput
 ): Promise<SyncGoogleLocationReviewsResult> {
   const [location] = await db
@@ -61,7 +60,7 @@ export async function syncGoogleLocationReviews(
     try {
       const normalized = normalizeGoogleReview(googleReview);
 
-      const ingestion = await ingestReview({
+      const ingestion = await ingestReview(db, {
         organizationId: input.organizationId,
         locationId: location.id,
         ...normalized

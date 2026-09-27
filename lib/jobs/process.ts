@@ -1,6 +1,7 @@
 import type { ClaimedJob } from '@/lib/jobs/claim';
 import type { createWorkerDb } from '@/lib/db/worker';
 import { generateDraftForReview } from '@/lib/reviews/generate-draft';
+import { syncProviderReviews } from '@/lib/integrations/providers/sync-reviews';
 
 type GenerateAIDraftPayload = {
   reviewId: number;
@@ -25,6 +26,29 @@ function parseGenerateAIDraftPayload(
   };
 }
 
+type SyncProviderReviewsPayload = {
+  locationId: number;
+};
+
+function parseSyncProviderReviewsPayload(
+  payload: unknown
+): SyncProviderReviewsPayload {
+  if (
+    typeof payload !== 'object' ||
+    payload === null ||
+    !('locationId' in payload) ||
+    typeof payload.locationId !== 'number' ||
+    !Number.isInteger(payload.locationId) ||
+    payload.locationId <= 0
+  ) {
+    throw new Error('Invalid sync-provider-reviews job payload');
+  }
+
+  return {
+    locationId: payload.locationId
+  };
+}
+
 export async function processJob(
   db: ReturnType<typeof createWorkerDb>['db'],
   job: ClaimedJob
@@ -40,6 +64,18 @@ export async function processJob(
         {
           skipIfResponseExists: true
         }
+      );
+
+      return;
+    }
+
+    case 'sync-provider-reviews': {
+      const payload = parseSyncProviderReviewsPayload(job.payload);
+
+      await syncProviderReviews(
+        db,
+        job.organizationId,
+        payload.locationId
       );
 
       return;

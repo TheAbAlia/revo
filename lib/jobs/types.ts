@@ -5,8 +5,16 @@ export type GenerateAIDraftJob = {
   };
 };
 
+export type SyncProviderReviewsJob = {
+  type: 'sync-provider-reviews';
+  payload: {
+    locationId: number;
+  };
+};
+
 export type JobDefinition =
-  | GenerateAIDraftJob;
+  | GenerateAIDraftJob
+  | SyncProviderReviewsJob;
 
 export type JobType = JobDefinition['type'];
 
