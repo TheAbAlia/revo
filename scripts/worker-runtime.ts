@@ -4,7 +4,18 @@ import { hostname } from 'node:os';
 import { client } from '@/lib/db/drizzle';
 import { runNextJob } from '@/lib/jobs/run-next';
 
-const IDLE_DELAY_MS = 1000;
+const DEFAULT_IDLE_DELAY_MS = 1000;
+const DATABASE_ERROR_DELAY_MS = 5000;
+
+function getIdleDelayMs() {
+  const value = Number(process.env.WORKER_IDLE_DELAY_MS);
+
+  if (!Number.isFinite(value) || value < 100) {
+    return DEFAULT_IDLE_DELAY_MS;
+  }
+
+  return Math.min(value, 30_000);
+}
 
 const workerId =
   `${hostname()}-${process.pid}-${randomUUID().slice(0, 8)}`;
@@ -32,21 +43,32 @@ export async function runWorker() {
 
   try {
     while (!shuttingDown) {
-      const result = await runNextJob(workerId);
+      try {
+        const result = await runNextJob(workerId);
 
-      if (result.status === 'idle') {
-        await sleep(IDLE_DELAY_MS);
-        continue;
+        if (result.status === 'idle') {
+          await sleep(getIdleDelayMs());
+          continue;
+        }
+
+        if (result.status === 'completed') {
+          console.log(`[worker] completed job ${result.jobId}`);
+          continue;
+        }
+
+        console.error(
+          `[worker] job ${result.jobId} ${result.status}: ${result.error}`
+        );
+      } catch (error) {
+        console.error(
+          '[worker] infrastructure error',
+          error instanceof Error ? error.message : String(error)
+        );
+
+        if (!shuttingDown) {
+          await sleep(DATABASE_ERROR_DELAY_MS);
+        }
       }
-
-      if (result.status === 'completed') {
-        console.log(`[worker] completed job ${result.jobId}`);
-        continue;
-      }
-
-      console.error(
-        `[worker] job ${result.jobId} ${result.status}: ${result.error}`
-      );
     }
   } finally {
     await client.end();
