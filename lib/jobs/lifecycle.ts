@@ -1,8 +1,9 @@
 import { and, eq } from 'drizzle-orm';
-import { db } from '@/lib/db/drizzle';
+import type { createWorkerDb } from '@/lib/db/worker';
 import { jobs } from '@/lib/db/schema';
 
 export async function completeJob(
+  db: ReturnType<typeof createWorkerDb>['db'],
   jobId: number,
   workerId: string
 ) {
@@ -31,6 +32,7 @@ export async function completeJob(
 }
 
 export async function failJob(
+  db: ReturnType<typeof createWorkerDb>['db'],
   jobId: number,
   workerId: string,
   error: unknown

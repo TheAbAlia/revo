@@ -20,9 +20,10 @@ export type RunNextJobResult =
     };
 
 export async function runNextJob(
+  db: ReturnType<typeof import('@/lib/db/worker').createWorkerDb>['db'],
   workerId: string
 ): Promise<RunNextJobResult> {
-  const job = await claimNextJob(workerId);
+  const job = await claimNextJob(db, workerId);
 
   if (!job) {
     return {
@@ -31,8 +32,8 @@ export async function runNextJob(
   }
 
   try {
-    await processJob(job);
-    await completeJob(job.id, workerId);
+    await processJob(db, job);
+    await completeJob(db, job.id, workerId);
 
     return {
       status: 'completed',
@@ -40,6 +41,7 @@ export async function runNextJob(
     };
   } catch (error) {
     const jobStatus = await failJob(
+      db,
       job.id,
       workerId,
       error

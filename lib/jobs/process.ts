@@ -1,4 +1,5 @@
 import type { ClaimedJob } from '@/lib/jobs/claim';
+import type { createWorkerDb } from '@/lib/db/worker';
 import { generateDraftForReview } from '@/lib/reviews/generate-draft';
 
 type GenerateAIDraftPayload = {
@@ -24,12 +25,16 @@ function parseGenerateAIDraftPayload(
   };
 }
 
-export async function processJob(job: ClaimedJob) {
+export async function processJob(
+  db: ReturnType<typeof createWorkerDb>['db'],
+  job: ClaimedJob
+) {
   switch (job.type) {
     case 'generate-ai-draft': {
       const payload = parseGenerateAIDraftPayload(job.payload);
 
       await generateDraftForReview(
+        db,
         job.organizationId,
         payload.reviewId,
         {

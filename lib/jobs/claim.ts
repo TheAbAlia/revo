@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { db } from '@/lib/db/drizzle';
+import type { createWorkerDb } from '@/lib/db/worker';
 
 export type ClaimedJob = {
   id: number;
@@ -13,6 +13,7 @@ export type ClaimedJob = {
 const STALE_LOCK_MINUTES = 10;
 
 export async function claimNextJob(
+  db: ReturnType<typeof createWorkerDb>['db'],
   workerId: string
 ): Promise<ClaimedJob | null> {
   await db.execute(sql`

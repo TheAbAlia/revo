@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 
-import { client } from '@/lib/db/drizzle';
+import { createWorkerDb } from '@/lib/db/worker';
 import { runNextJob } from '@/lib/jobs/run-next';
 
 const DEFAULT_IDLE_DELAY_MS = 1000;
@@ -41,10 +41,15 @@ export async function runWorker() {
 
   console.log(`[worker] started ${workerId}`);
 
+  let workerDb = createWorkerDb();
+
   try {
     while (!shuttingDown) {
       try {
-        const result = await runNextJob(workerId);
+        const result = await runNextJob(
+          workerDb.db,
+          workerId
+        );
 
         if (result.status === 'idle') {
           await sleep(getIdleDelayMs());
@@ -65,13 +70,17 @@ export async function runWorker() {
           error instanceof Error ? error.message : String(error)
         );
 
+        await workerDb.client.end();
+
         if (!shuttingDown) {
           await sleep(DATABASE_ERROR_DELAY_MS);
+
+          workerDb = createWorkerDb();
         }
       }
     }
   } finally {
-    await client.end();
+    await workerDb.client.end();
     console.log('[worker] stopped');
   }
 }
