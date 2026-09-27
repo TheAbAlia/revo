@@ -9,7 +9,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "worker": "tsx scripts/worker.ts"
+    "worker": "tsx scripts/worker.ts",
+    "test:worker": "tsx --test scripts/test-worker.ts"
   },
   "dependencies": {
     "@tailwindcss/postcss": "4.1.7",
