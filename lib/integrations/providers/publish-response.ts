@@ -6,6 +6,7 @@ import { decryptCredential } from '@/lib/integrations/crypto';
 import { publishGoogleReviewResponse } from '@/lib/integrations/google/publish-review-response';
 import { refreshGoogleAccessToken } from '@/lib/integrations/google/oauth';
 import { getProviderPublishContext } from '@/lib/integrations/providers/publish-context';
+import { refreshGoogleProviderAccessToken } from '@/lib/integrations/providers/refresh-access-token';
 import type { ReviewResponsePublisher } from '@/lib/integrations/providers/publishing';
 import { publishResponse } from '@/lib/reviews/publish-response';
 
@@ -71,7 +72,13 @@ export async function publishProviderResponse(
       );
 
       const { accessToken } =
-        await dependencies.refreshGoogleAccessToken(refreshToken);
+        await refreshGoogleProviderAccessToken(
+          db,
+          organizationId,
+          context.providerConnectionId,
+          refreshToken,
+          dependencies.refreshGoogleAccessToken
+        );
 
       const publisher: ReviewResponsePublisher = async ({
         locationExternalId,

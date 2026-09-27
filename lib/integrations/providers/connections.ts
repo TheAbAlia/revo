@@ -58,6 +58,9 @@ export async function upsertProviderConnection({
       ],
       set: {
         refreshTokenEncrypted,
+        status: 'connected',
+        lastError: null,
+        lastErrorAt: null,
         updatedAt: new Date(),
       },
     })

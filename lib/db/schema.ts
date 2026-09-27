@@ -221,6 +221,12 @@ export const providerConnections = pgTable(
 
     refreshTokenEncrypted: text('refresh_token_encrypted').notNull(),
 
+    status: varchar('status', { length: 30 })
+      .notNull()
+      .default('connected'),
+    lastError: text('last_error'),
+    lastErrorAt: timestamp('last_error_at'),
+
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

@@ -4,7 +4,7 @@ import type { createWorkerDb } from '@/lib/db/worker';
 import { providerConnections } from '@/lib/db/schema';
 import { decryptCredential } from '@/lib/integrations/crypto';
 import { fetchGoogleReviews } from '@/lib/integrations/google/fetch-reviews';
-import { refreshGoogleAccessToken } from '@/lib/integrations/google/oauth';
+import { refreshGoogleProviderAccessToken } from '@/lib/integrations/providers/refresh-access-token';
 import { syncGoogleLocationReviews } from '@/lib/integrations/google/sync-reviews';
 import { getProviderSyncContext } from '@/lib/integrations/providers/sync-context';
 
@@ -54,7 +54,12 @@ export async function syncProviderReviews(
       );
 
       const { accessToken } =
-        await refreshGoogleAccessToken(refreshToken);
+        await refreshGoogleProviderAccessToken(
+          db,
+          organizationId,
+          context.providerConnectionId,
+          refreshToken
+        );
 
       const reviews = await fetchGoogleReviews({
         accessToken,
