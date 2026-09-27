@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 
 import { createWorkerDb } from '@/lib/db/worker';
 import { jobs } from '@/lib/db/schema';
+import { getJobLeaseTimeoutMs } from '@/lib/jobs/config';
 import { runNextJob } from '@/lib/jobs/run-next';
 
 test('worker claims and completes a queued job', async () => {
@@ -192,6 +193,148 @@ test('worker permanently fails an exhausted job', async () => {
     assert.equal(
       storedJob.lastError,
       'Invalid generate-ai-draft job payload'
+    );
+  } finally {
+    if (testJobId !== null) {
+      await workerDb.db
+        .delete(jobs)
+        .where(eq(jobs.id, testJobId));
+    }
+
+    await workerDb.client.end();
+  }
+});
+
+test('worker reclaims a stale processing job', async () => {
+  const workerDb = createWorkerDb();
+  let testJobId: number | null = null;
+
+  try {
+    const staleLockedAt = new Date(
+      Date.now() - getJobLeaseTimeoutMs() - 5000
+    );
+
+    const [job] = await workerDb.db
+      .insert(jobs)
+      .values({
+        organizationId: 2,
+        type: 'generate-ai-draft',
+        payload: {
+          reviewId: 18
+        },
+        status: 'processing',
+        attempts: 1,
+        maxAttempts: 3,
+        availableAt: new Date(),
+        lockedAt: staleLockedAt,
+        lockedBy: 'dead-integration-test-worker'
+      })
+      .returning({
+        id: jobs.id
+      });
+
+    assert.ok(job);
+    testJobId = job.id;
+
+    const result = await runNextJob(
+      workerDb.db,
+      'replacement-integration-test-worker'
+    );
+
+    assert.equal(result.status, 'completed');
+    assert.equal(result.jobId, job.id);
+
+    const [storedJob] = await workerDb.db
+      .select({
+        status: jobs.status,
+        attempts: jobs.attempts,
+        lockedAt: jobs.lockedAt,
+        lockedBy: jobs.lockedBy
+      })
+      .from(jobs)
+      .where(eq(jobs.id, job.id))
+      .limit(1);
+
+    assert.ok(storedJob);
+    assert.equal(storedJob.status, 'completed');
+    assert.equal(storedJob.attempts, 2);
+    assert.equal(storedJob.lockedAt, null);
+    assert.equal(storedJob.lockedBy, null);
+  } finally {
+    if (testJobId !== null) {
+      await workerDb.db
+        .delete(jobs)
+        .where(eq(jobs.id, testJobId));
+    }
+
+    await workerDb.client.end();
+  }
+});
+
+test('worker fails a stale job that exhausted its attempts', async () => {
+  const workerDb = createWorkerDb();
+  let testJobId: number | null = null;
+
+  try {
+    const staleLockedAt = new Date(
+      Date.now() - getJobLeaseTimeoutMs() - 5000
+    );
+
+    const dedupeKey =
+      `integration-test-stale-exhausted-${Date.now()}`;
+
+    const [job] = await workerDb.db
+      .insert(jobs)
+      .values({
+        organizationId: 2,
+        type: 'generate-ai-draft',
+        payload: {
+          reviewId: 18
+        },
+        dedupeKey,
+        status: 'processing',
+        attempts: 3,
+        maxAttempts: 3,
+        availableAt: new Date(),
+        lockedAt: staleLockedAt,
+        lockedBy: 'dead-integration-test-worker'
+      })
+      .returning({
+        id: jobs.id
+      });
+
+    assert.ok(job);
+    testJobId = job.id;
+
+    const result = await runNextJob(
+      workerDb.db,
+      'replacement-integration-test-worker'
+    );
+
+    assert.equal(result.status, 'idle');
+
+    const [storedJob] = await workerDb.db
+      .select({
+        status: jobs.status,
+        attempts: jobs.attempts,
+        dedupeKey: jobs.dedupeKey,
+        lockedAt: jobs.lockedAt,
+        lockedBy: jobs.lockedBy,
+        lastError: jobs.lastError
+      })
+      .from(jobs)
+      .where(eq(jobs.id, job.id))
+      .limit(1);
+
+    assert.ok(storedJob);
+    assert.equal(storedJob.status, 'failed');
+    assert.equal(storedJob.attempts, 3);
+    assert.equal(storedJob.dedupeKey, null);
+    assert.equal(storedJob.lockedAt, null);
+    assert.equal(storedJob.lockedBy, null);
+    assert.equal(
+      storedJob.lastError,
+      'Worker lock expired after final attempt'
     );
   } finally {
     if (testJobId !== null) {
