@@ -31,9 +31,19 @@ export async function runNextJob(
     };
   }
 
+  const startedAt = Date.now();
+
   try {
     await processJob(db, job);
     await completeJob(db, job.id, workerId);
+
+    const durationMs = Date.now() - startedAt;
+
+    console.log(
+      `[worker] job ${job.id} ${job.type} ` +
+      `attempt ${job.attempts}/${job.maxAttempts} ` +
+      `completed in ${durationMs}ms`
+    );
 
     return {
       status: 'completed',
@@ -47,16 +57,25 @@ export async function runNextJob(
       error
     );
 
+    const durationMs = Date.now() - startedAt;
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : String(error);
+
+    console.error(
+      `[worker] job ${job.id} ${job.type} ` +
+      `attempt ${job.attempts}/${job.maxAttempts} ` +
+      `${jobStatus} in ${durationMs}ms: ${errorMessage}`
+    );
+
     return {
       status:
         jobStatus === 'failed'
           ? 'failed'
           : 'retrying',
       jobId: job.id,
-      error:
-        error instanceof Error
-          ? error.message
-          : String(error)
+      error: errorMessage
     };
   }
 }
