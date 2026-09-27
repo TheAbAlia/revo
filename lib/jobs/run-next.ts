@@ -1,5 +1,3 @@
-import 'server-only';
-
 import { claimNextJob } from '@/lib/jobs/claim';
 import {
   completeJob,

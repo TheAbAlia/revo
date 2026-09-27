@@ -1,5 +1,3 @@
-import 'server-only';
-
 import { sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 
@@ -17,6 +15,23 @@ const STALE_LOCK_MINUTES = 10;
 export async function claimNextJob(
   workerId: string
 ): Promise<ClaimedJob | null> {
+  await db.execute(sql`
+    UPDATE jobs
+    SET
+      status = 'failed',
+      locked_at = NULL,
+      locked_by = NULL,
+      last_error = COALESCE(
+        last_error,
+        'Worker lock expired after final attempt'
+      ),
+      updated_at = NOW()
+    WHERE status = 'processing'
+      AND attempts >= max_attempts
+      AND locked_at IS NOT NULL
+      AND locked_at <= NOW() - (${STALE_LOCK_MINUTES} * INTERVAL '1 minute')
+  `);
+
   const result = await db.execute<{
     id: number;
     organization_id: number;

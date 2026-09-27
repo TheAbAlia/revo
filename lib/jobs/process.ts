@@ -1,5 +1,3 @@
-import 'server-only';
-
 import type { ClaimedJob } from '@/lib/jobs/claim';
 import { generateDraftForReview } from '@/lib/reviews/generate-draft';
 

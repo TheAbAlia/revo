@@ -1,5 +1,3 @@
-import 'server-only';
-
 import { buildReviewResponsePrompt } from '@/lib/ai/prompt';
 import { generateWithGemini } from '@/lib/ai/providers/gemini';
 

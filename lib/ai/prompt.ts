@@ -1,5 +1,3 @@
-import 'server-only';
-
 export type ReviewResponsePromptInput = {
   rating: number;
   reviewContent: string;
