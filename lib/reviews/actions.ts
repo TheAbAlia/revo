@@ -5,13 +5,13 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db/drizzle';
 import {
   aiResponseGenerations,
+  brandVoices,
+  locations,
   responses,
   reviews
 } from '@/lib/db/schema';
 import { getOrganizationForUser } from '@/lib/db/queries';
-
-const generatedResponse =
-  'Thank you for taking the time to share your experience. We’re glad to hear our team was helpful and that everything went smoothly. We really appreciate your recommendation and look forward to welcoming you again.';
+import { generateReviewResponse } from '@/lib/ai/review-response';
 
 async function getAuthorizedReview(reviewId: number) {
   const membership = await getOrganizationForUser();
@@ -23,9 +23,23 @@ async function getAuthorizedReview(reviewId: number) {
   const [review] = await db
     .select({
       id: reviews.id,
-      organizationId: reviews.organizationId
+      organizationId: reviews.organizationId,
+      rating: reviews.rating,
+      content: reviews.content,
+      authorName: reviews.authorName,
+      locationName: locations.name
     })
     .from(reviews)
+    .innerJoin(
+      locations,
+      and(
+        eq(locations.id, reviews.locationId),
+        eq(
+          locations.organizationId,
+          membership.organization.id
+        )
+      )
+    )
     .where(
       and(
         eq(reviews.id, reviewId),
@@ -54,16 +68,37 @@ export async function generateResponse(reviewId: string) {
     throw new Error('Invalid review');
   }
 
-  const { organizationId } =
+  const { review, organizationId } =
     await getAuthorizedReview(numericReviewId);
+
+  const [brandVoice] = await db
+    .select({
+      instructions: brandVoices.instructions
+    })
+    .from(brandVoices)
+    .where(
+      and(
+        eq(brandVoices.organizationId, organizationId),
+        eq(brandVoices.isDefault, true)
+      )
+    )
+    .limit(1);
+
+  const generation = await generateReviewResponse({
+    rating: review.rating,
+    reviewContent: review.content,
+    authorName: review.authorName,
+    locationName: review.locationName,
+    brandVoiceInstructions: brandVoice?.instructions ?? null
+  });
 
   await db.transaction(async (tx) => {
     await tx.insert(aiResponseGenerations).values({
       organizationId,
       reviewId: numericReviewId,
-      content: generatedResponse,
-      provider: 'mock',
-      model: 'revo-development'
+      content: generation.content,
+      provider: generation.provider,
+      model: generation.model
     });
 
     const [existingResponse] = await tx
@@ -81,7 +116,7 @@ export async function generateResponse(reviewId: string) {
       await tx
         .update(responses)
         .set({
-          content: generatedResponse,
+          content: generation.content,
           status: 'draft',
           generatedByAI: true,
           approvedAt: null,
@@ -101,7 +136,7 @@ export async function generateResponse(reviewId: string) {
     await tx.insert(responses).values({
       organizationId,
       reviewId: numericReviewId,
-      content: generatedResponse,
+      content: generation.content,
       status: 'draft',
       generatedByAI: true
     });
