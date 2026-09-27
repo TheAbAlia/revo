@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { createWorkerDb } from '@/lib/db/worker';
 import { jobs } from '@/lib/db/schema';
 
@@ -10,8 +10,8 @@ export async function renewJobLock(
   const [job] = await db
     .update(jobs)
     .set({
-      lockedAt: new Date(),
-      updatedAt: new Date()
+      lockedAt: sql`NOW()`,
+      updatedAt: sql`NOW()`
     })
     .where(
       and(
