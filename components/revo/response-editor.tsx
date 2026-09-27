@@ -122,7 +122,7 @@ export function ResponseEditor({
         <button
           type="button"
           onClick={generate}
-          disabled={isPending}
+          disabled={isPending || isGenerating}
           className="mt-5 flex h-8 items-center gap-2 rounded-md bg-foreground px-3 text-xs font-medium text-background transition-opacity hover:opacity-90"
         >
           <Sparkles className="h-3.5 w-3.5" />
@@ -165,7 +165,7 @@ export function ResponseEditor({
           <button
             type="button"
             onClick={generate}
-            disabled={isPending}
+            disabled={isPending || isGenerating}
             className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"
           >
             <RefreshCw className="h-3 w-3" />
