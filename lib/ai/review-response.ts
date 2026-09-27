@@ -1,5 +1,8 @@
 import 'server-only';
 
+import { buildReviewResponsePrompt } from '@/lib/ai/prompt';
+import { generateWithGemini } from '@/lib/ai/providers/gemini';
+
 export type ReviewResponseGenerationInput = {
   rating: number;
   reviewContent: string;
@@ -17,18 +20,7 @@ export type ReviewResponseGenerationResult = {
 export async function generateReviewResponse(
   input: ReviewResponseGenerationInput
 ): Promise<ReviewResponseGenerationResult> {
-  const businessContext = input.locationName
-    ? ` for ${input.locationName}`
-    : '';
+  const prompt = buildReviewResponsePrompt(input);
 
-  const content =
-    `Thank you ${input.authorName} for taking the time to share ` +
-    `your experience${businessContext}. We really appreciate ` +
-    `your feedback and hope to welcome you again.`;
-
-  return {
-    content,
-    provider: 'mock',
-    model: 'revo-development',
-  };
+  return generateWithGemini(prompt);
 }
