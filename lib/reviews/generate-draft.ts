@@ -116,19 +116,11 @@ export async function generateDraftForReview(
         status: 'draft',
         generatedByAI: true
       })
-      .onConflictDoUpdate({
+      .onConflictDoNothing({
         target: [
           responses.organizationId,
           responses.reviewId
-        ],
-        set: {
-          content: generation.content,
-          status: 'draft',
-          generatedByAI: true,
-          approvedAt: null,
-          publishedAt: null,
-          updatedAt: new Date()
-        }
+        ]
       });
   });
 
