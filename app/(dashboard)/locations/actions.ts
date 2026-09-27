@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
-import { locations } from '@/lib/db/schema';
+import { locations, providerConnections } from '@/lib/db/schema';
 import { getOrganizationForUser } from '@/lib/db/queries';
 import { enqueueJob } from '@/lib/jobs/enqueue';
 
@@ -59,9 +59,23 @@ export async function syncLocationReviews(formData: FormData) {
       id: locations.id,
       provider: locations.provider,
       externalId: locations.externalId,
-      providerConnectionId: locations.providerConnectionId
+      providerConnectionId: locations.providerConnectionId,
+      providerConnectionStatus: providerConnections.status
     })
     .from(locations)
+    .leftJoin(
+      providerConnections,
+      and(
+        eq(
+          providerConnections.id,
+          locations.providerConnectionId
+        ),
+        eq(
+          providerConnections.organizationId,
+          organizationId
+        )
+      )
+    )
     .where(
       and(
         eq(locations.id, locationId),
@@ -80,6 +94,10 @@ export async function syncLocationReviews(formData: FormData) {
     !location.providerConnectionId
   ) {
     throw new Error('Location is not connected to a provider');
+  }
+
+  if (location.providerConnectionStatus !== 'connected') {
+    throw new Error('Provider connection requires reauthorization');
   }
 
   await enqueueJob({

@@ -34,7 +34,12 @@ export function getGoogleOAuthTokenConfig() {
   };
 }
 
-export function createGoogleAuthorizationUrl(state: string): URL {
+export function createGoogleAuthorizationUrl(
+  state: string,
+  options: {
+    promptForConsent?: boolean;
+  } = {}
+): URL {
   if (!state) {
     throw new Error('OAuth state is required');
   }
@@ -50,6 +55,10 @@ export function createGoogleAuthorizationUrl(state: string): URL {
   url.searchParams.set('access_type', 'offline');
   url.searchParams.set('include_granted_scopes', 'true');
   url.searchParams.set('state', state);
+
+  if (options.promptForConsent) {
+    url.searchParams.set('prompt', 'consent');
+  }
 
   return url;
 }

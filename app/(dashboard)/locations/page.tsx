@@ -9,14 +9,71 @@ import {
 import { redirect } from 'next/navigation';
 import { and, count, eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
-import { locations, responses, reviews } from '@/lib/db/schema';
+import {
+  locations,
+  providerConnections,
+  responses,
+  reviews
+} from '@/lib/db/schema';
 import { getOrganizationForUser } from '@/lib/db/queries';
 import {
   createLocation,
   syncLocationReviews
 } from './actions';
 
-export default async function LocationsPage() {
+type LocationsPageProps = {
+  searchParams: Promise<{
+    google?: string;
+  }>;
+};
+
+const googleConnectionMessages: Record<
+  string,
+  {
+    title: string;
+    description: string;
+  }
+> = {
+  connected: {
+    title: 'Google connected',
+    description:
+      'Your Google Business Profile connection is ready.'
+  },
+  'authorization-cancelled': {
+    title: 'Google connection cancelled',
+    description:
+      'No changes were made to your Google connection.'
+  },
+  'missing-refresh-token': {
+    title: 'Google connection incomplete',
+    description:
+      'Google did not provide the authorization needed for background access. Please try connecting again.'
+  },
+  'no-accounts': {
+    title: 'No Google Business Profile found',
+    description:
+      'The selected Google account does not have an accessible Business Profile account.'
+  },
+  'multiple-accounts': {
+    title: 'Multiple Google accounts found',
+    description:
+      'Account selection is not available yet. No connection was changed.'
+  },
+  'connection-failed': {
+    title: 'Google connection failed',
+    description:
+      'Revo could not complete the Google connection. Please try again.'
+  },
+  'account-mismatch': {
+    title: 'Different Google account selected',
+    description:
+      'Reconnect using the Google account originally linked to this location. No connection was changed.'
+  }
+};
+
+export default async function LocationsPage({
+  searchParams
+}: LocationsPageProps) {
   const membership = await getOrganizationForUser();
 
   if (!membership) {
@@ -25,6 +82,11 @@ export default async function LocationsPage() {
 
   const organizationId = membership.organization.id;
 
+  const params = await searchParams;
+  const googleStatus = params.google
+    ? googleConnectionMessages[params.google]
+    : null;
+
   const organizationLocations = await db
     .select({
       id: locations.id,
@@ -32,6 +94,7 @@ export default async function LocationsPage() {
       provider: locations.provider,
       externalId: locations.externalId,
       providerConnectionId: locations.providerConnectionId,
+      providerConnectionStatus: providerConnections.status,
       reviewCount: count(reviews.id),
       needsResponseCount: sql<number>`
         count(${reviews.id}) filter (
@@ -44,6 +107,19 @@ export default async function LocationsPage() {
       `
     })
     .from(locations)
+    .leftJoin(
+      providerConnections,
+      and(
+        eq(
+          providerConnections.id,
+          locations.providerConnectionId
+        ),
+        eq(
+          providerConnections.organizationId,
+          organizationId
+        )
+      )
+    )
     .leftJoin(
       reviews,
       and(
@@ -65,6 +141,7 @@ export default async function LocationsPage() {
       locations.provider,
       locations.externalId,
       locations.providerConnectionId,
+      providerConnections.status,
       locations.createdAt
     )
     .orderBy(locations.createdAt);
@@ -82,6 +159,24 @@ export default async function LocationsPage() {
       </header>
 
       <div className="mx-auto max-w-4xl px-6 py-8">
+        {googleStatus ? (
+          <div className="mb-6 rounded-lg border bg-surface px-4 py-3">
+            <div className="flex items-start gap-2.5">
+              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+
+              <div>
+                <p className="text-xs font-medium">
+                  {googleStatus.title}
+                </p>
+
+                <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
+                  {googleStatus.description}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <section>
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -117,10 +212,18 @@ export default async function LocationsPage() {
               </div>
             ) : (
               organizationLocations.map((location) => {
-                const connected =
+                const hasProviderConnection =
                   Boolean(location.provider) &&
                   Boolean(location.externalId) &&
                   Boolean(location.providerConnectionId);
+
+                const connected =
+                  hasProviderConnection &&
+                  location.providerConnectionStatus === 'connected';
+
+                const needsReauth =
+                  hasProviderConnection &&
+                  location.providerConnectionStatus === 'needs_reauth';
 
                 return (
                   <div
@@ -143,6 +246,11 @@ export default async function LocationsPage() {
                               <>
                                 <CheckCircle2 className="h-3 w-3" />
                                 Connected to {location.provider}
+                              </>
+                            ) : needsReauth ? (
+                              <>
+                                <CircleAlert className="h-3 w-3" />
+                                Google connection needs attention
                               </>
                             ) : (
                               <>
@@ -171,6 +279,13 @@ export default async function LocationsPage() {
                               Sync reviews
                             </button>
                           </form>
+                        ) : needsReauth ? (
+                          <a
+                            href={`/api/integrations/google/connect?mode=reconnect&connectionId=${location.providerConnectionId}`}
+                            className="flex h-8 items-center rounded-md border bg-background px-2.5 text-[11px] font-medium transition-colors hover:bg-muted"
+                          >
+                            Reconnect Google
+                          </a>
                         ) : null}
 
                         <div className="grid grid-cols-3 gap-6 text-right">
