@@ -62,48 +62,47 @@ export async function failJob(
   workerId: string,
   error: unknown
 ): Promise<'pending' | 'failed'> {
-  const [job] = await db
-    .select({
-      attempts: jobs.attempts,
-      maxAttempts: jobs.maxAttempts
-    })
-    .from(jobs)
-    .where(
-      and(
-        eq(jobs.id, jobId),
-        eq(jobs.status, 'processing'),
-        eq(jobs.lockedBy, workerId)
-      )
-    )
-    .limit(1);
-
-  if (!job) {
-    throw new Error('Job is not owned by this worker');
-  }
-
-  const exhausted = job.attempts >= job.maxAttempts;
-  const nextStatus = exhausted ? 'failed' : 'pending';
-
   const message =
     error instanceof Error
       ? error.message
       : String(error);
 
-  const retryDelayMs =
-    Math.min(60_000, 1000 * 2 ** (job.attempts - 1));
-
-  const [updatedJob] = await db
+  const [job] = await db
     .update(jobs)
     .set({
-      status: nextStatus,
-      dedupeKey: exhausted ? null : undefined,
-      availableAt: exhausted
-        ? new Date()
-        : new Date(Date.now() + retryDelayMs),
+      status: sql`
+        CASE
+          WHEN ${jobs.attempts} >= ${jobs.maxAttempts}
+            THEN 'failed'
+          ELSE 'pending'
+        END
+      `,
+      dedupeKey: sql`
+        CASE
+          WHEN ${jobs.attempts} >= ${jobs.maxAttempts}
+            THEN NULL
+          ELSE ${jobs.dedupeKey}
+        END
+      `,
+      availableAt: sql`
+        CASE
+          WHEN ${jobs.attempts} >= ${jobs.maxAttempts}
+            THEN NOW()
+          ELSE NOW() + (
+            LEAST(
+              60000,
+              1000 * POWER(
+                2,
+                GREATEST(${jobs.attempts} - 1, 0)
+              )
+            ) * INTERVAL '1 millisecond'
+          )
+        END
+      `,
       lockedAt: null,
       lockedBy: null,
       lastError: message.slice(0, 2000),
-      updatedAt: new Date()
+      updatedAt: sql`NOW()`
     })
     .where(
       and(
@@ -112,11 +111,22 @@ export async function failJob(
         eq(jobs.lockedBy, workerId)
       )
     )
-    .returning({ id: jobs.id });
+    .returning({
+      status: jobs.status
+    });
 
-  if (!updatedJob) {
+  if (!job) {
     throw new Error('Job is not owned by this worker');
   }
 
-  return nextStatus;
+  if (
+    job.status !== 'pending' &&
+    job.status !== 'failed'
+  ) {
+    throw new Error(
+      `Unexpected failed job status: ${job.status}`
+    );
+  }
+
+  return job.status;
 }
