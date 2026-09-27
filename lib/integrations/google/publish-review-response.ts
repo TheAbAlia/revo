@@ -1,3 +1,5 @@
+import { googleHttpError } from '@/lib/integrations/google/errors';
+
 const GOOGLE_BUSINESS_API_BASE =
   'https://mybusiness.googleapis.com/v4';
 
@@ -79,8 +81,9 @@ export async function publishGoogleReviewResponse({
   });
 
   if (!response.ok) {
-    throw new Error(
-      `Google review reply request failed with status ${response.status}`
+    throw googleHttpError(
+      'Google review reply request',
+      response.status
     );
   }
 }

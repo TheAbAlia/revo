@@ -1,4 +1,5 @@
 import { claimNextJob } from '@/lib/jobs/claim';
+import { isPermanentJobError } from '@/lib/jobs/errors';
 import {
   completeJob,
   failJob
@@ -84,7 +85,10 @@ export async function runNextJob(
       db,
       job.id,
       workerId,
-      error
+      error,
+      {
+        retryable: !isPermanentJobError(error)
+      }
     );
 
     const durationMs = Date.now() - startedAt;

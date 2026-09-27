@@ -1,3 +1,5 @@
+import { googleOAuthError } from '@/lib/integrations/google/errors';
+
 export const GOOGLE_BUSINESS_SCOPE =
   'https://www.googleapis.com/auth/business.manage';
 
@@ -95,10 +97,10 @@ export async function exchangeGoogleAuthorizationCode(
   const data = (await response.json()) as GoogleTokenResponse;
 
   if (!response.ok) {
-    throw new Error(
-      data.error_description ||
-        data.error ||
-        'Google token exchange failed'
+    throw googleOAuthError(
+      'Google token exchange',
+      data.error,
+      data.error_description
     );
   }
 
@@ -146,10 +148,10 @@ export async function refreshGoogleAccessToken(
   const data = (await response.json()) as GoogleTokenResponse;
 
   if (!response.ok) {
-    throw new Error(
-      data.error_description ||
-        data.error ||
-        'Google access token refresh failed'
+    throw googleOAuthError(
+      'Google access token refresh',
+      data.error,
+      data.error_description
     );
   }
 

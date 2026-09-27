@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { createWorkerDb } from '@/lib/db/worker';
 import { jobs } from '@/lib/db/schema';
 import { getJobLeaseTimeoutMs } from '@/lib/jobs/config';
+import { failJob } from '@/lib/jobs/lifecycle';
 import { runNextJob } from '@/lib/jobs/run-next';
 
 test('worker claims and completes a queued job', async () => {
@@ -65,7 +66,7 @@ test('worker claims and completes a queued job', async () => {
   }
 });
 
-test('worker retries a failed job and releases its lock', async () => {
+test('worker permanently fails an invalid job payload', async () => {
   const workerDb = createWorkerDb();
   let testJobId: number | null = null;
 
@@ -93,7 +94,7 @@ test('worker retries a failed job and releases its lock', async () => {
       'integration-test-worker'
     );
 
-    assert.equal(result.status, 'retrying');
+    assert.equal(result.status, 'failed');
     assert.equal(result.jobId, job.id);
     assert.equal(
       result.error,
@@ -114,7 +115,7 @@ test('worker retries a failed job and releases its lock', async () => {
       .limit(1);
 
     assert.ok(storedJob);
-    assert.equal(storedJob.status, 'pending');
+    assert.equal(storedJob.status, 'failed');
     assert.equal(storedJob.attempts, 1);
     assert.equal(storedJob.lockedAt, null);
     assert.equal(storedJob.lockedBy, null);
@@ -347,7 +348,7 @@ test('worker fails a stale job that exhausted its attempts', async () => {
   }
 });
 
-test('worker retries an invalid publish-response job', async () => {
+test('worker permanently fails an invalid publish-response job', async () => {
   const workerDb = createWorkerDb();
   let testJobId: number | null = null;
 
@@ -373,7 +374,7 @@ test('worker retries an invalid publish-response job', async () => {
       'integration-test-worker'
     );
 
-    assert.equal(result.status, 'retrying');
+    assert.equal(result.status, 'failed');
     assert.equal(result.jobId, job.id);
     assert.equal(
       result.error,
@@ -393,7 +394,7 @@ test('worker retries an invalid publish-response job', async () => {
       .limit(1);
 
     assert.ok(storedJob);
-    assert.equal(storedJob.status, 'pending');
+    assert.equal(storedJob.status, 'failed');
     assert.equal(storedJob.attempts, 1);
     assert.equal(storedJob.lockedAt, null);
     assert.equal(storedJob.lockedBy, null);
@@ -401,6 +402,78 @@ test('worker retries an invalid publish-response job', async () => {
       storedJob.lastError,
       'Invalid publish-response job payload'
     );
+  } finally {
+    if (testJobId !== null) {
+      await workerDb.db
+        .delete(jobs)
+        .where(eq(jobs.id, testJobId));
+    }
+
+    await workerDb.client.end();
+  }
+});
+
+test('ordinary job errors remain retryable with backoff', async () => {
+  const workerDb = createWorkerDb();
+  let testJobId: number | null = null;
+
+  try {
+    const [job] = await workerDb.db
+      .insert(jobs)
+      .values({
+        organizationId: 2,
+        type: 'generate-ai-draft',
+        payload: {
+          reviewId: 18
+        },
+        status: 'processing',
+        attempts: 1,
+        maxAttempts: 3,
+        availableAt: new Date(),
+        lockedAt: new Date(),
+        lockedBy: 'retryable-error-test-worker'
+      })
+      .returning({
+        id: jobs.id
+      });
+
+    assert.ok(job);
+    testJobId = job.id;
+
+    const beforeFailure = new Date();
+
+    const status = await failJob(
+      workerDb.db,
+      job.id,
+      'retryable-error-test-worker',
+      new Error('Temporary provider failure')
+    );
+
+    assert.equal(status, 'pending');
+
+    const [storedJob] = await workerDb.db
+      .select({
+        status: jobs.status,
+        attempts: jobs.attempts,
+        availableAt: jobs.availableAt,
+        lockedAt: jobs.lockedAt,
+        lockedBy: jobs.lockedBy,
+        lastError: jobs.lastError
+      })
+      .from(jobs)
+      .where(eq(jobs.id, job.id))
+      .limit(1);
+
+    assert.ok(storedJob);
+    assert.equal(storedJob.status, 'pending');
+    assert.equal(storedJob.attempts, 1);
+    assert.equal(storedJob.lockedAt, null);
+    assert.equal(storedJob.lockedBy, null);
+    assert.equal(
+      storedJob.lastError,
+      'Temporary provider failure'
+    );
+    assert.ok(storedJob.availableAt > beforeFailure);
   } finally {
     if (testJobId !== null) {
       await workerDb.db

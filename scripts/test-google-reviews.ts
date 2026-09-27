@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { fetchGoogleReviews } from '@/lib/integrations/google/fetch-reviews';
+import { PermanentJobError } from '@/lib/jobs/errors';
 
 test('fetchGoogleReviews fetches and combines paginated reviews', async () => {
   const originalFetch = globalThis.fetch;
@@ -96,12 +97,12 @@ test('fetchGoogleReviews fetches and combines paginated reviews', async () => {
   }
 });
 
-test('fetchGoogleReviews rejects failed Google responses', async () => {
+test('fetchGoogleReviews keeps rate-limit errors retryable', async () => {
   const originalFetch = globalThis.fetch;
 
   globalThis.fetch = async () =>
-    new Response('Forbidden', {
-      status: 403,
+    new Response('Too Many Requests', {
+      status: 429,
     });
 
   try {
@@ -112,7 +113,48 @@ test('fetchGoogleReviews rejects failed Google responses', async () => {
           accountId: 'account-123',
           locationId: 'location-456',
         }),
-      /Google reviews request failed with status 403/
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.equal(
+          error instanceof PermanentJobError,
+          false
+        );
+        assert.match(
+          error.message,
+          /Google reviews request failed with status 429/
+        );
+        return true;
+      }
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('fetchGoogleReviews marks permanent HTTP errors', async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async () =>
+    new Response('Bad Request', {
+      status: 400,
+    });
+
+  try {
+    await assert.rejects(
+      () =>
+        fetchGoogleReviews({
+          accessToken: 'test-access-token',
+          accountId: 'account-123',
+          locationId: 'location-456',
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof PermanentJobError);
+        assert.match(
+          error.message,
+          /Google reviews request failed with status 400/
+        );
+        return true;
+      }
     );
   } finally {
     globalThis.fetch = originalFetch;

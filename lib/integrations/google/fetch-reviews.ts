@@ -1,3 +1,5 @@
+import { googleHttpError } from '@/lib/integrations/google/errors';
+
 import type { GoogleReview } from '@/lib/integrations/google/reviews';
 
 const GOOGLE_BUSINESS_API_BASE =
@@ -76,8 +78,9 @@ export async function fetchGoogleReviews({
     });
 
     if (!response.ok) {
-      throw new Error(
-        `Google reviews request failed with status ${response.status}`
+      throw googleHttpError(
+        'Google reviews request',
+        response.status
       );
     }
 

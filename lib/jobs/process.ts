@@ -1,4 +1,5 @@
 import type { ClaimedJob } from '@/lib/jobs/claim';
+import { PermanentJobError } from '@/lib/jobs/errors';
 import type { createWorkerDb } from '@/lib/db/worker';
 import { generateDraftForReview } from '@/lib/reviews/generate-draft';
 import { syncProviderReviews } from '@/lib/integrations/providers/sync-reviews';
@@ -19,7 +20,7 @@ function parseGenerateAIDraftPayload(
     !Number.isInteger(payload.reviewId) ||
     payload.reviewId <= 0
   ) {
-    throw new Error('Invalid generate-ai-draft job payload');
+    throw new PermanentJobError('Invalid generate-ai-draft job payload');
   }
 
   return {
@@ -42,7 +43,7 @@ function parseSyncProviderReviewsPayload(
     !Number.isInteger(payload.locationId) ||
     payload.locationId <= 0
   ) {
-    throw new Error('Invalid sync-provider-reviews job payload');
+    throw new PermanentJobError('Invalid sync-provider-reviews job payload');
   }
 
   return {
@@ -65,7 +66,7 @@ function parsePublishResponsePayload(
     !Number.isInteger(payload.responseId) ||
     payload.responseId <= 0
   ) {
-    throw new Error('Invalid publish-response job payload');
+    throw new PermanentJobError('Invalid publish-response job payload');
   }
 
   return {
@@ -118,6 +119,6 @@ export async function processJob(
     }
 
     default:
-      throw new Error(`Unsupported job type: ${job.type}`);
+      throw new PermanentJobError(`Unsupported job type: ${job.type}`);
   }
 }

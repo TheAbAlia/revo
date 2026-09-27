@@ -60,33 +60,41 @@ export async function failJob(
   db: ReturnType<typeof createWorkerDb>['db'],
   jobId: number,
   workerId: string,
-  error: unknown
+  error: unknown,
+  options: {
+    retryable?: boolean;
+  } = {}
 ): Promise<'pending' | 'failed'> {
   const message =
     error instanceof Error
       ? error.message
       : String(error);
 
+  const retryable = options.retryable !== false;
+
   const [job] = await db
     .update(jobs)
     .set({
       status: sql`
         CASE
-          WHEN ${jobs.attempts} >= ${jobs.maxAttempts}
+          WHEN NOT ${retryable}
+            OR ${jobs.attempts} >= ${jobs.maxAttempts}
             THEN 'failed'
           ELSE 'pending'
         END
       `,
       dedupeKey: sql`
         CASE
-          WHEN ${jobs.attempts} >= ${jobs.maxAttempts}
+          WHEN NOT ${retryable}
+            OR ${jobs.attempts} >= ${jobs.maxAttempts}
             THEN NULL
           ELSE ${jobs.dedupeKey}
         END
       `,
       availableAt: sql`
         CASE
-          WHEN ${jobs.attempts} >= ${jobs.maxAttempts}
+          WHEN NOT ${retryable}
+            OR ${jobs.attempts} >= ${jobs.maxAttempts}
             THEN NOW()
           ELSE NOW() + (
             LEAST(
