@@ -4,14 +4,12 @@ import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db/drizzle';
 import {
-  aiResponseGenerations,
-  brandVoices,
   locations,
   responses,
   reviews
 } from '@/lib/db/schema';
 import { getOrganizationForUser } from '@/lib/db/queries';
-import { generateReviewResponse } from '@/lib/ai/review-response';
+import { generateDraftForReview } from '@/lib/reviews/generate-draft';
 
 async function getAuthorizedReview(reviewId: number) {
   const membership = await getOrganizationForUser();
@@ -68,32 +66,21 @@ export async function generateResponse(reviewId: string) {
     throw new Error('Invalid review');
   }
 
-  const { review, organizationId } =
+  const { organizationId } =
     await getAuthorizedReview(numericReviewId);
 
-  const [brandVoice] = await db
-    .select({
-      instructions: brandVoices.instructions
-    })
-    .from(brandVoices)
-    .where(
-      and(
-        eq(brandVoices.organizationId, organizationId),
-        eq(brandVoices.isDefault, true)
-      )
-    )
-    .limit(1);
-
-  let generation;
-
   try {
-    generation = await generateReviewResponse({
-      rating: review.rating,
-      reviewContent: review.content,
-      authorName: review.authorName,
-      locationName: review.locationName,
-      brandVoiceInstructions: brandVoice?.instructions ?? null
-    });
+    const generation = await generateDraftForReview(
+      organizationId,
+      numericReviewId
+    );
+
+    revalidatePath('/');
+
+    return {
+      success: true as const,
+      content: generation.content
+    };
   } catch (error) {
     console.error(
       'Review response generation failed',
@@ -105,63 +92,6 @@ export async function generateResponse(reviewId: string) {
       error: 'Could not generate a response. Please try again.'
     };
   }
-
-  await db.transaction(async (tx) => {
-    await tx.insert(aiResponseGenerations).values({
-      organizationId,
-      reviewId: numericReviewId,
-      content: generation.content,
-      provider: generation.provider,
-      model: generation.model
-    });
-
-    const [existingResponse] = await tx
-      .select({ id: responses.id })
-      .from(responses)
-      .where(
-        and(
-          eq(responses.organizationId, organizationId),
-          eq(responses.reviewId, numericReviewId)
-        )
-      )
-      .limit(1);
-
-    if (existingResponse) {
-      await tx
-        .update(responses)
-        .set({
-          content: generation.content,
-          status: 'draft',
-          generatedByAI: true,
-          approvedAt: null,
-          publishedAt: null,
-          updatedAt: new Date()
-        })
-        .where(
-          and(
-            eq(responses.id, existingResponse.id),
-            eq(responses.organizationId, organizationId)
-          )
-        );
-
-      return;
-    }
-
-    await tx.insert(responses).values({
-      organizationId,
-      reviewId: numericReviewId,
-      content: generation.content,
-      status: 'draft',
-      generatedByAI: true
-    });
-  });
-
-  revalidatePath('/');
-
-  return {
-    success: true as const,
-    content: generation.content
-  };
 }
 
 export async function saveResponseDraft(
