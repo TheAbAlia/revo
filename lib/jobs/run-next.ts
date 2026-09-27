@@ -4,6 +4,10 @@ import {
   failJob
 } from '@/lib/jobs/lifecycle';
 import { processJob } from '@/lib/jobs/process';
+import {
+  JobLeaseLostError,
+  startJobLease
+} from '@/lib/jobs/lease';
 
 export type RunNextJobResult =
   | {
@@ -32,9 +36,23 @@ export async function runNextJob(
   }
 
   const startedAt = Date.now();
+  const lease = startJobLease(
+    db,
+    job.id,
+    workerId
+  );
 
   try {
     await processJob(db, job);
+
+    await lease.stop();
+
+    const leaseError = lease.getError();
+
+    if (leaseError) {
+      throw leaseError;
+    }
+
     await completeJob(db, job.id, workerId);
 
     const durationMs = Date.now() - startedAt;
@@ -50,6 +68,18 @@ export async function runNextJob(
       jobId: job.id
     };
   } catch (error) {
+    await lease.stop();
+
+    if (error instanceof JobLeaseLostError) {
+      throw error;
+    }
+
+    const leaseError = lease.getError();
+
+    if (leaseError) {
+      throw leaseError;
+    }
+
     const jobStatus = await failJob(
       db,
       job.id,

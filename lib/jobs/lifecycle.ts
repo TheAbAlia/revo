@@ -2,6 +2,31 @@ import { and, eq } from 'drizzle-orm';
 import type { createWorkerDb } from '@/lib/db/worker';
 import { jobs } from '@/lib/db/schema';
 
+export async function renewJobLock(
+  db: ReturnType<typeof createWorkerDb>['db'],
+  jobId: number,
+  workerId: string
+) {
+  const [job] = await db
+    .update(jobs)
+    .set({
+      lockedAt: new Date(),
+      updatedAt: new Date()
+    })
+    .where(
+      and(
+        eq(jobs.id, jobId),
+        eq(jobs.status, 'processing'),
+        eq(jobs.lockedBy, workerId)
+      )
+    )
+    .returning({ id: jobs.id });
+
+  if (!job) {
+    throw new Error('Job is not owned by this worker');
+  }
+}
+
 export async function completeJob(
   db: ReturnType<typeof createWorkerDb>['db'],
   jobId: number,
