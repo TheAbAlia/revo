@@ -16,6 +16,7 @@ export type ReviewViewModel = {
   providerLabel: string;
   locationLabel: string;
   receivedAtLabel: string;
+  canPublish: boolean;
 
   responseStatus: ResponseStatus | 'unanswered';
   generationStatus:
@@ -76,6 +77,7 @@ export function toReviewViewModel(
     locationLabel: item.locationName,
 
     receivedAtLabel: formatReceivedAt(review.receivedAt),
+    canPublish: item.canPublish,
 
     responseStatus: response?.status ?? 'unanswered',
     generationStatus: item.responseGenerationStatus,

@@ -26,6 +26,9 @@ export async function getReviewInbox(
         receivedAt: reviews.receivedAt,
       },
       locationName: locations.name,
+      locationProvider: locations.provider,
+      locationExternalId: locations.externalId,
+      providerConnectionId: locations.providerConnectionId,
       response: {
         id: responses.id,
         reviewId: responses.reviewId,
@@ -136,6 +139,10 @@ export async function getReviewInbox(
       : null,
 
     locationName: row.locationName,
+    canPublish:
+      row.locationProvider === 'google' &&
+      Boolean(row.locationExternalId) &&
+      Boolean(row.providerConnectionId),
     responseGenerationStatus: (() => {
       const job = latestGenerationJobByReviewId.get(row.review.id);
 

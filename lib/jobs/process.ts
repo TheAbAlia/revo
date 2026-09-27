@@ -2,6 +2,7 @@ import type { ClaimedJob } from '@/lib/jobs/claim';
 import type { createWorkerDb } from '@/lib/db/worker';
 import { generateDraftForReview } from '@/lib/reviews/generate-draft';
 import { syncProviderReviews } from '@/lib/integrations/providers/sync-reviews';
+import { publishProviderResponse } from '@/lib/integrations/providers/publish-response';
 
 type GenerateAIDraftPayload = {
   reviewId: number;
@@ -49,6 +50,29 @@ function parseSyncProviderReviewsPayload(
   };
 }
 
+type PublishResponsePayload = {
+  responseId: number;
+};
+
+function parsePublishResponsePayload(
+  payload: unknown
+): PublishResponsePayload {
+  if (
+    typeof payload !== 'object' ||
+    payload === null ||
+    !('responseId' in payload) ||
+    typeof payload.responseId !== 'number' ||
+    !Number.isInteger(payload.responseId) ||
+    payload.responseId <= 0
+  ) {
+    throw new Error('Invalid publish-response job payload');
+  }
+
+  return {
+    responseId: payload.responseId
+  };
+}
+
 export async function processJob(
   db: ReturnType<typeof createWorkerDb>['db'],
   job: ClaimedJob
@@ -76,6 +100,18 @@ export async function processJob(
         db,
         job.organizationId,
         payload.locationId
+      );
+
+      return;
+    }
+
+    case 'publish-response': {
+      const payload = parsePublishResponsePayload(job.payload);
+
+      await publishProviderResponse(
+        db,
+        job.organizationId,
+        payload.responseId
       );
 
       return;

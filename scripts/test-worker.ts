@@ -346,3 +346,68 @@ test('worker fails a stale job that exhausted its attempts', async () => {
     await workerDb.client.end();
   }
 });
+
+test('worker retries an invalid publish-response job', async () => {
+  const workerDb = createWorkerDb();
+  let testJobId: number | null = null;
+
+  try {
+    const [job] = await workerDb.db
+      .insert(jobs)
+      .values({
+        organizationId: 2,
+        type: 'publish-response',
+        payload: {},
+        availableAt: new Date(),
+        maxAttempts: 3
+      })
+      .returning({
+        id: jobs.id
+      });
+
+    assert.ok(job);
+    testJobId = job.id;
+
+    const result = await runNextJob(
+      workerDb.db,
+      'integration-test-worker'
+    );
+
+    assert.equal(result.status, 'retrying');
+    assert.equal(result.jobId, job.id);
+    assert.equal(
+      result.error,
+      'Invalid publish-response job payload'
+    );
+
+    const [storedJob] = await workerDb.db
+      .select({
+        status: jobs.status,
+        attempts: jobs.attempts,
+        lockedAt: jobs.lockedAt,
+        lockedBy: jobs.lockedBy,
+        lastError: jobs.lastError
+      })
+      .from(jobs)
+      .where(eq(jobs.id, job.id))
+      .limit(1);
+
+    assert.ok(storedJob);
+    assert.equal(storedJob.status, 'pending');
+    assert.equal(storedJob.attempts, 1);
+    assert.equal(storedJob.lockedAt, null);
+    assert.equal(storedJob.lockedBy, null);
+    assert.equal(
+      storedJob.lastError,
+      'Invalid publish-response job payload'
+    );
+  } finally {
+    if (testJobId !== null) {
+      await workerDb.db
+        .delete(jobs)
+        .where(eq(jobs.id, testJobId));
+    }
+
+    await workerDb.client.end();
+  }
+});

@@ -26,7 +26,10 @@ async function getAuthorizedReview(reviewId: number) {
       rating: reviews.rating,
       content: reviews.content,
       authorName: reviews.authorName,
-      locationName: locations.name
+      locationName: locations.name,
+      locationProvider: locations.provider,
+      locationExternalId: locations.externalId,
+      providerConnectionId: locations.providerConnectionId
     })
     .from(reviews)
     .innerJoin(
@@ -239,4 +242,66 @@ export async function approveResponse(
     );
 
   revalidatePath('/');
+}
+
+export async function publishApprovedResponse(
+  reviewId: string
+) {
+  const numericReviewId = Number(reviewId);
+
+  if (
+    !Number.isInteger(numericReviewId) ||
+    numericReviewId <= 0
+  ) {
+    throw new Error('Invalid review');
+  }
+
+  const { review, organizationId } =
+    await getAuthorizedReview(numericReviewId);
+
+  if (
+    review.locationProvider !== 'google' ||
+    !review.locationExternalId ||
+    !review.providerConnectionId
+  ) {
+    throw new Error('Location is not connected to Google');
+  }
+
+  const [response] = await db
+    .select({
+      id: responses.id,
+      status: responses.status
+    })
+    .from(responses)
+    .where(
+      and(
+        eq(responses.organizationId, organizationId),
+        eq(responses.reviewId, numericReviewId)
+      )
+    )
+    .limit(1);
+
+  if (!response) {
+    throw new Error('Response not found');
+  }
+
+  if (response.status !== 'approved') {
+    throw new Error('Response is not approved');
+  }
+
+  await enqueueJob({
+    organizationId,
+    type: 'publish-response',
+    payload: {
+      responseId: response.id
+    },
+    dedupeKey:
+      `publish-response:${organizationId}:${response.id}`
+  });
+
+  revalidatePath('/');
+
+  return {
+    success: true as const
+  };
 }

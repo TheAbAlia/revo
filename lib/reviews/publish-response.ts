@@ -1,7 +1,5 @@
-import 'server-only';
-
 import { and, eq } from 'drizzle-orm';
-import { db } from '@/lib/db/drizzle';
+import type { createWorkerDb } from '@/lib/db/worker';
 import {
   locations,
   responses,
@@ -21,8 +19,9 @@ export type PublishResponseResult = {
 };
 
 export async function publishResponse(
+  db: ReturnType<typeof createWorkerDb>['db'],
   organizationId: number,
-  reviewId: number,
+  responseId: number,
   publisher: ReviewResponsePublisher
 ): Promise<PublishResponseResult> {
   const [record] = await db
@@ -52,7 +51,7 @@ export async function publishResponse(
     .where(
       and(
         eq(responses.organizationId, organizationId),
-        eq(responses.reviewId, reviewId)
+        eq(responses.id, responseId)
       )
     )
     .limit(1);

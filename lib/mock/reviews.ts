@@ -123,5 +123,6 @@ export const reviewInbox: ReviewWithResponse[] = reviews.map((review) => ({
   locationName:
     review.locationId === darmstadtLocationId
       ? 'Darmstadt'
-      : 'Frankfurt'
+      : 'Frankfurt',
+  canPublish: false
 }));

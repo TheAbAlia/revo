@@ -8,6 +8,7 @@ import type {
 import {
   approveResponse,
   generateResponse,
+  publishApprovedResponse,
   retryResponseGeneration,
   saveResponseDraft
 } from '@/lib/reviews/actions';
@@ -24,7 +25,8 @@ export function ResponseEditor({
   reviewId,
   response: initialResponse,
   generationStatus,
-  generationError
+  generationError,
+  canPublish
 }: {
   reviewId: string;
   response: ReviewResponse | null;
@@ -34,6 +36,7 @@ export function ResponseEditor({
     | 'failed'
     | null;
   generationError: string | null;
+  canPublish: boolean;
 }) {
   const [content, setContent] = useState(
     initialResponse?.content ?? ''
@@ -50,6 +53,8 @@ export function ResponseEditor({
 
   const [isPending, startTransition] = useTransition();
   const [generationActionError, setGenerationActionError] =
+    useState<string | null>(null);
+  const [publishActionError, setPublishActionError] =
     useState<string | null>(null);
 
   const generate = () => {
@@ -88,6 +93,20 @@ export function ResponseEditor({
 
     startTransition(async () => {
       await approveResponse(reviewId, nextContent);
+    });
+  };
+
+  const publish = () => {
+    setPublishActionError(null);
+
+    startTransition(async () => {
+      try {
+        await publishApprovedResponse(reviewId);
+      } catch {
+        setPublishActionError(
+          'Could not queue this response for publishing. Please try again.'
+        );
+      }
     });
   };
 
@@ -212,9 +231,13 @@ export function ResponseEditor({
         )}
       </div>
 
-      {(generationError || generationActionError) && (
+      {(generationError ||
+        generationActionError ||
+        publishActionError) && (
         <div className="border-b px-4 py-2 text-xs text-destructive">
-          {generationError || generationActionError}
+          {generationError ||
+            generationActionError ||
+            publishActionError}
         </div>
       )}
 
@@ -267,15 +290,31 @@ export function ResponseEditor({
                 Approved
               </span>
 
-              <button
-                type="button"
-                disabled
-                title="Connect Google Business Profile to publish responses"
-                className="flex h-8 cursor-not-allowed items-center gap-2 rounded-md border bg-muted px-3 text-xs font-medium text-muted-foreground opacity-70"
-              >
-                <Send className="h-3.5 w-3.5" />
-                Connect Google to publish
-              </button>
+              {canPublish ? (
+                <button
+                  type="button"
+                  onClick={publish}
+                  disabled={isPending}
+                  className="flex h-8 items-center gap-2 rounded-md bg-foreground px-3 text-xs font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  {isPending ? (
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Send className="h-3.5 w-3.5" />
+                  )}
+                  {isPending ? 'Queuing...' : 'Publish'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  title="Connect Google Business Profile to publish responses"
+                  className="flex h-8 cursor-not-allowed items-center gap-2 rounded-md border bg-muted px-3 text-xs font-medium text-muted-foreground opacity-70"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  Connect Google to publish
+                </button>
+              )}
             </>
           )}
 

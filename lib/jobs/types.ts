@@ -12,9 +12,17 @@ export type SyncProviderReviewsJob = {
   };
 };
 
+export type PublishResponseJob = {
+  type: 'publish-response';
+  payload: {
+    responseId: number;
+  };
+};
+
 export type JobDefinition =
   | GenerateAIDraftJob
-  | SyncProviderReviewsJob;
+  | SyncProviderReviewsJob
+  | PublishResponseJob;
 
 export type JobType = JobDefinition['type'];
 

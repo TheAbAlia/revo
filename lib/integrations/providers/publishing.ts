@@ -8,10 +8,6 @@ export type PublishReviewResponseInput = {
   content: string;
 };
 
-export type PublishReviewResponseResult = {
-  externalResponseId?: string;
-};
-
 export type ReviewResponsePublisher = (
   input: PublishReviewResponseInput
-) => Promise<PublishReviewResponseResult>;
+) => Promise<void>;

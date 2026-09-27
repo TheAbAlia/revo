@@ -75,6 +75,7 @@ export function ReviewDetail({
               response={review.response}
               generationStatus={review.generationStatus}
               generationError={review.generationError}
+              canPublish={review.canPublish}
             />
           </div>
         </section>
