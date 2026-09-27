@@ -51,6 +51,7 @@ export async function fetchGoogleReviews({
   );
 
   const reviews: GoogleReview[] = [];
+  const seenPageTokens = new Set<string>();
   let pageToken: string | undefined;
 
   do {
@@ -84,7 +85,20 @@ export async function fetchGoogleReviews({
 
     reviews.push(...(data.reviews ?? []));
 
-    pageToken = data.nextPageToken?.trim() || undefined;
+    const nextPageToken =
+      data.nextPageToken?.trim() || undefined;
+
+    if (nextPageToken) {
+      if (seenPageTokens.has(nextPageToken)) {
+        throw new Error(
+          'Google reviews pagination returned a repeated page token'
+        );
+      }
+
+      seenPageTokens.add(nextPageToken);
+    }
+
+    pageToken = nextPageToken;
   } while (pageToken);
 
   return reviews;

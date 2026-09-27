@@ -73,8 +73,16 @@ export async function ingestReview(
 
     if (!review) {
       const [existingReview] = await tx
-        .select({ id: reviews.id })
-        .from(reviews)
+        .update(reviews)
+        .set({
+          locationId: input.locationId,
+          authorName: input.authorName,
+          authorInitials: input.authorInitials,
+          rating: input.rating,
+          content: input.content,
+          receivedAt: input.receivedAt,
+          updatedAt: new Date()
+        })
         .where(
           and(
             eq(reviews.organizationId, input.organizationId),
@@ -82,7 +90,7 @@ export async function ingestReview(
             eq(reviews.externalId, input.externalId)
           )
         )
-        .limit(1);
+        .returning({ id: reviews.id });
 
       if (!existingReview) {
         throw new Error('Could not resolve existing review');

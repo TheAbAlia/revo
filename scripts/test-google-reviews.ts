@@ -118,3 +118,33 @@ test('fetchGoogleReviews rejects failed Google responses', async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test('fetchGoogleReviews rejects repeated page tokens', async () => {
+  const originalFetch = globalThis.fetch;
+  let callCount = 0;
+
+  globalThis.fetch = async () => {
+    callCount += 1;
+
+    return Response.json({
+      reviews: [],
+      nextPageToken: 'repeated-token'
+    });
+  };
+
+  try {
+    await assert.rejects(
+      () =>
+        fetchGoogleReviews({
+          accessToken: 'test-access-token',
+          accountId: 'account-123',
+          locationId: 'location-456'
+        }),
+      /Google reviews pagination returned a repeated page token/
+    );
+
+    assert.equal(callCount, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
