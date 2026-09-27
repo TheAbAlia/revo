@@ -17,6 +17,12 @@ export type ReviewViewModel = {
   locationLabel: string;
   receivedAtLabel: string;
   canPublish: boolean;
+  publishingStatus:
+    | 'queued'
+    | 'publishing'
+    | 'failed'
+    | null;
+  publishingError: string | null;
 
   responseStatus: ResponseStatus | 'unanswered';
   generationStatus:
@@ -78,6 +84,8 @@ export function toReviewViewModel(
 
     receivedAtLabel: formatReceivedAt(review.receivedAt),
     canPublish: item.canPublish,
+    publishingStatus: item.responsePublishingStatus,
+    publishingError: item.responsePublishingError,
 
     responseStatus: response?.status ?? 'unanswered',
     generationStatus: item.responseGenerationStatus,

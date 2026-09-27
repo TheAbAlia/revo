@@ -75,6 +75,8 @@ export function ReviewDetail({
               response={review.response}
               generationStatus={review.generationStatus}
               generationError={review.generationError}
+              publishingStatus={review.publishingStatus}
+              publishingError={review.publishingError}
               canPublish={review.canPublish}
             />
           </div>

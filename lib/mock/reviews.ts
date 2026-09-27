@@ -120,6 +120,8 @@ export const reviewInbox: ReviewWithResponse[] = reviews.map((review) => ({
     responses.find((response) => response.reviewId === review.id) ?? null,
   responseGenerationStatus: null,
   responseGenerationError: null,
+  responsePublishingStatus: null,
+  responsePublishingError: null,
   locationName:
     review.locationId === darmstadtLocationId
       ? 'Darmstadt'

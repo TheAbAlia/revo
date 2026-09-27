@@ -104,6 +104,50 @@ export async function getReviewInbox(
     }
   }
 
+  const publishingJobs = await db
+    .select({
+      payload: jobs.payload,
+      status: jobs.status,
+      lastError: jobs.lastError,
+      createdAt: jobs.createdAt
+    })
+    .from(jobs)
+    .where(
+      and(
+        eq(jobs.organizationId, organizationId),
+        eq(jobs.type, 'publish-response')
+      )
+    )
+    .orderBy(desc(jobs.createdAt));
+
+  const latestPublishingJobByResponseId = new Map<
+    number,
+    {
+      status: string;
+      lastError: string | null;
+    }
+  >();
+
+  for (const job of publishingJobs) {
+    const payload = job.payload;
+
+    if (
+      typeof payload !== 'object' ||
+      payload === null ||
+      !('responseId' in payload) ||
+      typeof payload.responseId !== 'number'
+    ) {
+      continue;
+    }
+
+    if (!latestPublishingJobByResponseId.has(payload.responseId)) {
+      latestPublishingJobByResponseId.set(payload.responseId, {
+        status: job.status,
+        lastError: job.lastError
+      });
+    }
+  }
+
   return rows.map((row) => ({
     review: {
       id: String(row.review.id),
@@ -143,6 +187,37 @@ export async function getReviewInbox(
       row.locationProvider === 'google' &&
       Boolean(row.locationExternalId) &&
       Boolean(row.providerConnectionId),
+    responsePublishingStatus: (() => {
+      if (!row.response?.id) {
+        return null;
+      }
+
+      const job = latestPublishingJobByResponseId.get(
+        row.response.id
+      );
+
+      if (!job) {
+        return null;
+      }
+
+      if (job.status === 'pending') {
+        return 'queued' as const;
+      }
+
+      if (job.status === 'processing') {
+        return 'publishing' as const;
+      }
+
+      if (job.status === 'failed') {
+        return 'failed' as const;
+      }
+
+      return null;
+    })(),
+    responsePublishingError: row.response?.id
+      ? latestPublishingJobByResponseId.get(row.response.id)
+          ?.lastError ?? null
+      : null,
     responseGenerationStatus: (() => {
       const job = latestGenerationJobByReviewId.get(row.review.id);
 

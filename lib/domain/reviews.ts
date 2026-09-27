@@ -62,6 +62,12 @@ export type ReviewWithResponse = {
   response: ReviewResponse | null;
   locationName: string;
   canPublish: boolean;
+  responsePublishingStatus:
+    | 'queued'
+    | 'publishing'
+    | 'failed'
+    | null;
+  responsePublishingError: string | null;
   responseGenerationStatus:
     | 'queued'
     | 'generating'
