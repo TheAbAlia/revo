@@ -1,4 +1,6 @@
-export type ReviewProvider = 'google';
+import type { Provider } from '@/lib/integrations/providers/types';
+
+export type ReviewProvider = Provider;
 
 export type Review = {
   id: string;

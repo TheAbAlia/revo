@@ -8,7 +8,7 @@ import {
   encryptCredential,
 } from '@/lib/integrations/crypto';
 
-export type Provider = 'google';
+import type { Provider } from '@/lib/integrations/providers/types';
 
 type UpsertProviderConnectionInput = {
   organizationId: number;

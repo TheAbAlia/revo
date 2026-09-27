@@ -8,17 +8,13 @@ import {
   reviews
 } from '@/lib/db/schema';
 import { generateDraftForReview } from '@/lib/reviews/generate-draft';
+import type {
+  NormalizedProviderReview
+} from '@/lib/integrations/providers/types';
 
-export type IngestReviewInput = {
+export type IngestReviewInput = NormalizedProviderReview & {
   organizationId: number;
   locationId: number;
-  provider: string;
-  externalId: string;
-  authorName: string;
-  authorInitials: string;
-  rating: number;
-  content: string;
-  receivedAt: Date;
 };
 
 export type IngestReviewResult = {
