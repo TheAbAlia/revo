@@ -248,6 +248,11 @@ export const locations = pgTable('locations', {
   provider: varchar('provider', { length: 30 }),
   externalId: text('external_id'),
 
+  providerConnectionId: integer('provider_connection_id')
+    .references(() => providerConnections.id, {
+      onDelete: 'set null'
+    }),
+
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -475,11 +480,13 @@ export const organizationMembersRelations = relations(
 
 export const providerConnectionsRelations = relations(
   providerConnections,
-  ({ one }) => ({
+  ({ one, many }) => ({
     organization: one(organizations, {
       fields: [providerConnections.organizationId],
       references: [organizations.id],
     }),
+
+    locations: many(locations),
   })
 );
 
@@ -489,6 +496,11 @@ export const locationsRelations = relations(
     organization: one(organizations, {
       fields: [locations.organizationId],
       references: [organizations.id],
+    }),
+
+    providerConnection: one(providerConnections, {
+      fields: [locations.providerConnectionId],
+      references: [providerConnections.id],
     }),
 
     reviews: many(reviews),
