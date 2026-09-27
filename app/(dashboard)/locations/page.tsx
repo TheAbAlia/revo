@@ -3,14 +3,18 @@ import {
   CheckCircle2,
   CircleAlert,
   MessageSquareText,
-  Plus
+  Plus,
+  RefreshCw
 } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { and, count, eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import { locations, responses, reviews } from '@/lib/db/schema';
 import { getOrganizationForUser } from '@/lib/db/queries';
-import { createLocation } from './actions';
+import {
+  createLocation,
+  syncLocationReviews
+} from './actions';
 
 export default async function LocationsPage() {
   const membership = await getOrganizationForUser();
@@ -27,6 +31,7 @@ export default async function LocationsPage() {
       name: locations.name,
       provider: locations.provider,
       externalId: locations.externalId,
+      providerConnectionId: locations.providerConnectionId,
       reviewCount: count(reviews.id),
       needsResponseCount: sql<number>`
         count(${reviews.id}) filter (
@@ -59,6 +64,7 @@ export default async function LocationsPage() {
       locations.name,
       locations.provider,
       locations.externalId,
+      locations.providerConnectionId,
       locations.createdAt
     )
     .orderBy(locations.createdAt);
@@ -113,7 +119,8 @@ export default async function LocationsPage() {
               organizationLocations.map((location) => {
                 const connected =
                   Boolean(location.provider) &&
-                  Boolean(location.externalId);
+                  Boolean(location.externalId) &&
+                  Boolean(location.providerConnectionId);
 
                 return (
                   <div
@@ -147,31 +154,51 @@ export default async function LocationsPage() {
                         </div>
                       </div>
 
-                      <div className="grid shrink-0 grid-cols-3 gap-6 text-right">
-                        <div>
-                          <div className="text-[13px] font-medium">
-                            {location.reviewCount}
-                          </div>
-                          <div className="mt-0.5 text-[10px] text-muted-foreground">
-                            Reviews
-                          </div>
-                        </div>
+                      <div className="flex shrink-0 items-center gap-5">
+                        {connected ? (
+                          <form action={syncLocationReviews}>
+                            <input
+                              type="hidden"
+                              name="locationId"
+                              value={location.id}
+                            />
 
-                        <div>
-                          <div className="text-[13px] font-medium">
-                            {location.needsResponseCount}
-                          </div>
-                          <div className="mt-0.5 text-[10px] text-muted-foreground">
-                            Needs response
-                          </div>
-                        </div>
+                            <button
+                              type="submit"
+                              className="flex h-8 items-center gap-1.5 rounded-md border bg-background px-2.5 text-[11px] font-medium transition-colors hover:bg-muted"
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              Sync reviews
+                            </button>
+                          </form>
+                        ) : null}
 
-                        <div>
-                          <div className="text-[13px] font-medium">
-                            {location.respondedCount}
+                        <div className="grid grid-cols-3 gap-6 text-right">
+                          <div>
+                            <div className="text-[13px] font-medium">
+                              {location.reviewCount}
+                            </div>
+                            <div className="mt-0.5 text-[10px] text-muted-foreground">
+                              Reviews
+                            </div>
                           </div>
-                          <div className="mt-0.5 text-[10px] text-muted-foreground">
-                            Responded
+
+                          <div>
+                            <div className="text-[13px] font-medium">
+                              {location.needsResponseCount}
+                            </div>
+                            <div className="mt-0.5 text-[10px] text-muted-foreground">
+                              Needs response
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-[13px] font-medium">
+                              {location.respondedCount}
+                            </div>
+                            <div className="mt-0.5 text-[10px] text-muted-foreground">
+                              Responded
+                            </div>
                           </div>
                         </div>
                       </div>
