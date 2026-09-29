@@ -26,6 +26,84 @@ export function buildApi() {
     };
   });
 
+  api.post('/v1/auth/sign-in', async (request, reply) => {
+    const body = request.body as {
+      email?: unknown;
+      password?: unknown;
+    } | null;
+
+    if (
+      !body ||
+      typeof body.email !== 'string' ||
+      typeof body.password !== 'string' ||
+      body.email.length < 3 ||
+      body.email.length > 255 ||
+      body.password.length < 8 ||
+      body.password.length > 100
+    ) {
+      return reply.code(400).send({
+        error: 'Invalid email or password.'
+      });
+    }
+
+    const { authenticateUser } =
+      await import('./auth/mutations');
+
+    const user = await authenticateUser(
+      apiDb.db,
+      body.email,
+      body.password
+    );
+
+    if (!user) {
+      return reply.code(401).send({
+        error: 'Invalid email or password.'
+      });
+    }
+
+    return {
+      user
+    };
+  });
+
+  api.post('/v1/auth/sign-up', async (request, reply) => {
+    const body = request.body as {
+      email?: unknown;
+      password?: unknown;
+    } | null;
+
+    if (
+      !body ||
+      typeof body.email !== 'string' ||
+      !body.email.includes('@') ||
+      typeof body.password !== 'string' ||
+      body.password.length < 8
+    ) {
+      return reply.code(400).send({
+        error: 'Invalid account details.'
+      });
+    }
+
+    const { registerUser } =
+      await import('./auth/mutations');
+
+    const user = await registerUser(
+      apiDb.db,
+      body.email,
+      body.password
+    );
+
+    if (!user) {
+      return reply.code(409).send({
+        error: 'Failed to create user. Please try again.'
+      });
+    }
+
+    return reply.code(201).send({
+      user
+    });
+  });
+
   api.get('/v1/me', async (request, reply) => {
     const sessionToken =
       getSessionTokenFromRequest(request);

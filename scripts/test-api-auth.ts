@@ -5,7 +5,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import {
   comparePasswords,
   hashPassword
-} from '@/lib/auth/session';
+} from '@/lib/auth/password';
 import { signToken } from '@/lib/auth/token';
 import { createWorkerDb } from '@/lib/db/worker';
 import {
@@ -21,6 +21,181 @@ import {
   users
 } from '@/lib/db/schema';
 import { buildApi } from '@/server/api/app';
+
+test('POST /v1/auth/sign-in validates credentials', async () => {
+  const api = buildApi();
+  const workerDb = createWorkerDb();
+  const suffix = `${Date.now()}-${process.pid}`;
+  const email = `api-auth-signin-${suffix}@example.test`;
+  const password = 'correct-password-123';
+
+  let userId: number | null = null;
+
+  try {
+    const [user] = await workerDb.db
+      .insert(users)
+      .values({
+        email,
+        passwordHash: await hashPassword(password)
+      })
+      .returning({
+        id: users.id
+      });
+
+    assert.ok(user);
+    userId = user.id;
+
+    const validResponse = await api.inject({
+      method: 'POST',
+      url: '/v1/auth/sign-in',
+      payload: {
+        email,
+        password
+      }
+    });
+
+    assert.equal(validResponse.statusCode, 200);
+    assert.deepEqual(validResponse.json(), {
+      user: {
+        id: user.id
+      }
+    });
+
+    const invalidResponse = await api.inject({
+      method: 'POST',
+      url: '/v1/auth/sign-in',
+      payload: {
+        email,
+        password: 'wrong-password-123'
+      }
+    });
+
+    assert.equal(invalidResponse.statusCode, 401);
+    assert.deepEqual(invalidResponse.json(), {
+      error: 'Invalid email or password.'
+    });
+
+    await workerDb.db
+      .update(users)
+      .set({
+        deletedAt: new Date()
+      })
+      .where(eq(users.id, user.id));
+
+    const deletedUserResponse = await api.inject({
+      method: 'POST',
+      url: '/v1/auth/sign-in',
+      payload: {
+        email,
+        password
+      }
+    });
+
+    assert.equal(deletedUserResponse.statusCode, 401);
+    assert.deepEqual(deletedUserResponse.json(), {
+      error: 'Invalid email or password.'
+    });
+  } finally {
+    if (userId !== null) {
+      await workerDb.db
+        .delete(users)
+        .where(eq(users.id, userId));
+    }
+
+    await api.close();
+    await workerDb.client.end();
+  }
+});
+
+test('POST /v1/auth/sign-up creates an owner workspace', async () => {
+  const api = buildApi();
+  const workerDb = createWorkerDb();
+  const suffix = `${Date.now()}-${process.pid}`;
+  const email = `api-auth-signup-${suffix}@example.test`;
+  const password = 'new-password-123';
+
+  let userId: number | null = null;
+  let organizationId: number | null = null;
+
+  try {
+    const response = await api.inject({
+      method: 'POST',
+      url: '/v1/auth/sign-up',
+      payload: {
+        email,
+        password
+      }
+    });
+
+    assert.equal(response.statusCode, 201);
+
+    const body = response.json();
+    assert.ok(Number.isInteger(body.user.id));
+    userId = body.user.id;
+
+    const [createdUser] = await workerDb.db
+      .select({
+        id: users.id,
+        email: users.email,
+        passwordHash: users.passwordHash
+      })
+      .from(users)
+      .where(eq(users.id, body.user.id))
+      .limit(1);
+
+    assert.ok(createdUser);
+    assert.equal(createdUser.email, email);
+    assert.equal(
+      await comparePasswords(password, createdUser.passwordHash),
+      true
+    );
+
+    const [membership] = await workerDb.db
+      .select({
+        organizationId: organizationMembers.organizationId,
+        role: organizationMembers.role
+      })
+      .from(organizationMembers)
+      .where(eq(organizationMembers.userId, body.user.id))
+      .limit(1);
+
+    assert.ok(membership);
+    assert.equal(membership.role, 'owner');
+    organizationId = membership.organizationId;
+
+    const duplicateResponse = await api.inject({
+      method: 'POST',
+      url: '/v1/auth/sign-up',
+      payload: {
+        email,
+        password
+      }
+    });
+
+    assert.equal(duplicateResponse.statusCode, 409);
+  } finally {
+    if (userId !== null) {
+      await workerDb.db
+        .delete(organizationMembers)
+        .where(eq(organizationMembers.userId, userId));
+    }
+
+    if (organizationId !== null) {
+      await workerDb.db
+        .delete(organizations)
+        .where(eq(organizations.id, organizationId));
+    }
+
+    if (userId !== null) {
+      await workerDb.db
+        .delete(users)
+        .where(eq(users.id, userId));
+    }
+
+    await api.close();
+    await workerDb.client.end();
+  }
+});
 
 test('GET /v1/me rejects requests without a session', async () => {
   const api = buildApi();

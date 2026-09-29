@@ -1,26 +1,11 @@
-import { compare, hash } from 'bcryptjs';
 import { cookies } from 'next/headers';
-import type { NewUser } from '@/lib/db/schema';
 import {
   signToken,
   verifyToken,
   type SessionData
 } from '@/lib/auth/token';
 
-const SALT_ROUNDS = 10;
-
 export { signToken, verifyToken };
-
-export async function hashPassword(password: string) {
-  return hash(password, SALT_ROUNDS);
-}
-
-export async function comparePasswords(
-  plainTextPassword: string,
-  hashedPassword: string
-) {
-  return compare(plainTextPassword, hashedPassword);
-}
 
 export async function getSession() {
   const session = (await cookies()).get('session')?.value;
@@ -32,12 +17,12 @@ export async function getSession() {
   return verifyToken(session);
 }
 
-export async function setSession(user: NewUser) {
+export async function setSession(user: { id: number }) {
   const expiresInOneDay =
     new Date(Date.now() + 24 * 60 * 60 * 1000);
 
   const session: SessionData = {
-    user: { id: user.id! },
+    user: { id: user.id },
     expires: expiresInOneDay.toISOString()
   };
 

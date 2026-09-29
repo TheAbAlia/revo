@@ -6,7 +6,7 @@ import {
 import {
   comparePasswords,
   hashPassword
-} from '@/lib/auth/session';
+} from '@/lib/auth/password';
 import type { ApiDb } from '../db';
 
 export async function updateSettingsAccount(

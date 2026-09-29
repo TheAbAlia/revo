@@ -7,6 +7,96 @@ import type { ReviewWithResponse } from '@/lib/domain/reviews';
 const API_URL =
   process.env.REVO_API_URL ?? 'http://127.0.0.1:4000';
 
+export async function authenticateAccount(
+  email: string,
+  password: string
+) {
+  const response = await fetch(
+    `${API_URL}/v1/auth/sign-in`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        email,
+        password
+      }),
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return {
+      success: false as const,
+      error: 'Invalid email or password. Please try again.'
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      error: 'Could not sign in. Please try again.'
+    };
+  }
+
+  const body = (await response.json()) as {
+    user: {
+      id: number;
+    };
+  };
+
+  return {
+    success: true as const,
+    user: body.user
+  };
+}
+
+export async function registerAccount(
+  email: string,
+  password: string
+) {
+  const response = await fetch(
+    `${API_URL}/v1/auth/sign-up`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        email,
+        password
+      }),
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 409) {
+    return {
+      success: false as const,
+      error: 'Failed to create user. Please try again.'
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      error: 'Could not create account. Please try again.'
+    };
+  }
+
+  const body = (await response.json()) as {
+    user: {
+      id: number;
+    };
+  };
+
+  return {
+    success: true as const,
+    user: body.user
+  };
+}
+
 type DashboardShell = {
   organization: {
     id: number;
