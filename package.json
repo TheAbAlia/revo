@@ -17,7 +17,8 @@
     "test:provider-sync-state": "tsx --test --test-concurrency=1 scripts/test-provider-sync-state.ts",
     "scheduler": "tsx scripts/scheduler.ts",
     "test:provider-sync-scheduler": "tsx --test --test-concurrency=1 scripts/test-provider-sync-scheduler.ts",
-    "test:ai": "tsx --test --test-concurrency=1 scripts/test-ai-prompt-boundary.ts"
+    "test:ai": "tsx --test --test-concurrency=1 scripts/test-ai-prompt-boundary.ts",
+    "eval:ai": "tsx scripts/evaluate-ai-responses.ts"
   },
   "dependencies": {
     "@tailwindcss/postcss": "4.1.7",
