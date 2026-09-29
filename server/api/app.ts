@@ -55,6 +55,41 @@ export function buildApi() {
     };
   });
 
+  api.get('/v1/reviews', async (request, reply) => {
+    const sessionToken =
+      getSessionTokenFromRequest(request);
+
+    if (!sessionToken) {
+      return reply.code(401).send({
+        error: 'Unauthorized'
+      });
+    }
+
+    const context =
+      await resolveAuthenticatedContext(
+        apiDb.db,
+        sessionToken
+      );
+
+    if (!context) {
+      return reply.code(401).send({
+        error: 'Unauthorized'
+      });
+    }
+
+    const { getReviewInbox } =
+      await import('./reviews/queries');
+
+    const items = await getReviewInbox(
+      apiDb.db,
+      context.organization.id
+    );
+
+    return {
+      items
+    };
+  });
+
   api.get('/v1/dashboard/shell', async (request, reply) => {
     const sessionToken =
       getSessionTokenFromRequest(request);

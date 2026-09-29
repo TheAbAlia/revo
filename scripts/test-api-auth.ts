@@ -132,6 +132,21 @@ test('GET /v1/dashboard/shell derives tenant scope from the session', async () =
   }
 });
 
+test('GET /v1/reviews rejects requests without a session', async () => {
+  const api = buildApi();
+
+  try {
+    const response = await api.inject({
+      method: 'GET',
+      url: '/v1/reviews'
+    });
+
+    assert.equal(response.statusCode, 401);
+  } finally {
+    await api.close();
+  }
+});
+
 test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => {
   const workerDb = createWorkerDb();
   const suffix = `${Date.now()}-${process.pid}`;
@@ -261,7 +276,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
     const api = buildApi();
 
     try {
-      const response = await api.inject({
+      const shellResponse = await api.inject({
         method: 'GET',
         url: '/v1/dashboard/shell',
         headers: {
@@ -269,15 +284,55 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
         }
       });
 
-      assert.equal(response.statusCode, 200);
+      assert.equal(shellResponse.statusCode, 200);
 
-      const body = response.json();
+      const shellBody = shellResponse.json();
 
       assert.equal(
-        body.organization.id,
+        shellBody.organization.id,
         organizationA.id
       );
-      assert.equal(body.inboxCount, 1);
+      assert.equal(shellBody.inboxCount, 1);
+
+      const reviewsResponse = await api.inject({
+        method: 'GET',
+        url: '/v1/reviews',
+        headers: {
+          cookie: `session=${token}`
+        }
+      });
+
+      assert.equal(reviewsResponse.statusCode, 200);
+
+      const reviewsBody = reviewsResponse.json();
+
+      assert.equal(reviewsBody.items.length, 1);
+      assert.equal(
+        reviewsBody.items[0].review.organizationId,
+        String(organizationA.id)
+      );
+      assert.equal(
+        reviewsBody.items[0].review.externalId,
+        `tenant-a-review-${suffix}`
+      );
+      assert.equal(
+        reviewsBody.items[0].review.content,
+        'Tenant A review'
+      );
+
+      assert.equal(
+        reviewsBody.items.some(
+          (item: {
+            review: {
+              externalId: string;
+            };
+          }) =>
+            item.review.externalId.startsWith(
+              'tenant-b-review-'
+            )
+        ),
+        false
+      );
     } finally {
       await api.close();
     }

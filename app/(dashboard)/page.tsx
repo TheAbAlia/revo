@@ -1,18 +1,14 @@
 import { redirect } from 'next/navigation';
+
 import { ReviewInbox } from '@/components/revo/review-inbox';
-import { getOrganizationForUser } from '@/lib/db/queries';
-import { getReviewInbox } from '@/lib/reviews/queries';
+import { getReviewInbox } from '@/lib/api/server';
 
 export default async function DashboardPage() {
-  const membership = await getOrganizationForUser();
+  const reviews = await getReviewInbox();
 
-  if (!membership) {
+  if (!reviews) {
     redirect('/sign-in');
   }
-
-  const reviews = await getReviewInbox(
-    membership.organization.id
-  );
 
   return <ReviewInbox items={reviews} />;
 }
