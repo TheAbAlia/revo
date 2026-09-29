@@ -34,17 +34,60 @@ export async function enqueueJobWithDb<T extends JobType>(
       .where(
         and(
           eq(jobs.organizationId, input.organizationId),
-          eq(jobs.dedupeKey, input.dedupeKey),
-          inArray(jobs.status, ['pending', 'processing'])
+          eq(jobs.dedupeKey, input.dedupeKey)
         )
       )
       .limit(1);
 
-    if (existingJob) {
+    if (
+      existingJob &&
+      ['pending', 'processing'].includes(
+        existingJob.status
+      )
+    ) {
       return {
         ...existingJob,
         created: false
       };
+    }
+
+    if (existingJob?.status === 'failed') {
+      const [retriedJob] = await db
+        .update(jobs)
+        .set({
+          payload: input.payload,
+          status: 'pending',
+          attempts: 0,
+          availableAt:
+            input.availableAt ?? new Date(),
+          lockedAt: null,
+          lockedBy: null,
+          lastError: null,
+          updatedAt: new Date()
+        })
+        .where(
+          and(
+            eq(jobs.id, existingJob.id),
+            eq(
+              jobs.organizationId,
+              input.organizationId
+            ),
+            eq(jobs.status, 'failed')
+          )
+        )
+        .returning({
+          id: jobs.id,
+          type: jobs.type,
+          status: jobs.status,
+          availableAt: jobs.availableAt
+        });
+
+      if (retriedJob) {
+        return {
+          ...retriedJob,
+          created: false
+        };
+      }
     }
   }
 
