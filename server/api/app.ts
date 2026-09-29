@@ -428,6 +428,181 @@ export function buildApi() {
     }
   );
 
+  api.post('/v1/locations', async (request, reply) => {
+    const sessionToken =
+      getSessionTokenFromRequest(request);
+
+    if (!sessionToken) {
+      return reply.code(401).send({
+        error: 'Unauthorized'
+      });
+    }
+
+    const context =
+      await resolveAuthenticatedContext(
+        apiDb.db,
+        sessionToken
+      );
+
+    if (!context) {
+      return reply.code(401).send({
+        error: 'Unauthorized'
+      });
+    }
+
+    const body = request.body as {
+      name?: unknown;
+    } | null;
+
+    if (
+      !body ||
+      typeof body.name !== 'string'
+    ) {
+      return reply.code(400).send({
+        error: 'Invalid location name'
+      });
+    }
+
+    const name = body.name.trim();
+
+    if (
+      name.length < 2 ||
+      name.length > 160
+    ) {
+      return reply.code(400).send({
+        error: 'Invalid location name'
+      });
+    }
+
+    const { createLocation } =
+      await import('./locations/mutations');
+
+    const location = await createLocation(
+      apiDb.db,
+      context.organization.id,
+      name
+    );
+
+    return {
+      success: true,
+      location
+    };
+  });
+
+  api.post(
+    '/v1/locations/:locationId/sync',
+    async (request, reply) => {
+      const sessionToken =
+        getSessionTokenFromRequest(request);
+
+      if (!sessionToken) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const context =
+        await resolveAuthenticatedContext(
+          apiDb.db,
+          sessionToken
+        );
+
+      if (!context) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const { locationId } =
+        request.params as {
+          locationId: string;
+        };
+
+      const numericLocationId =
+        Number(locationId);
+
+      if (
+        !Number.isInteger(numericLocationId) ||
+        numericLocationId <= 0
+      ) {
+        return reply.code(400).send({
+          error: 'Invalid location'
+        });
+      }
+
+      const { syncLocationReviews } =
+        await import('./locations/mutations');
+
+      const result =
+        await syncLocationReviews(
+          apiDb.db,
+          context.organization.id,
+          numericLocationId
+        );
+
+      if (result.status === 'not-found') {
+        return reply.code(404).send({
+          error: 'Location not found'
+        });
+      }
+
+      if (result.status === 'not-connected') {
+        return reply.code(409).send({
+          error:
+            'Location is not connected to a provider'
+        });
+      }
+
+      if (result.status === 'needs-reauth') {
+        return reply.code(409).send({
+          error:
+            'Provider connection requires reauthorization'
+        });
+      }
+
+      return {
+        success: true,
+        jobId: result.jobId,
+        created: result.created
+      };
+    }
+  );
+
+  api.get('/v1/locations', async (request, reply) => {
+    const sessionToken =
+      getSessionTokenFromRequest(request);
+
+    if (!sessionToken) {
+      return reply.code(401).send({
+        error: 'Unauthorized'
+      });
+    }
+
+    const context =
+      await resolveAuthenticatedContext(
+        apiDb.db,
+        sessionToken
+      );
+
+    if (!context) {
+      return reply.code(401).send({
+        error: 'Unauthorized'
+      });
+    }
+
+    const { getLocations } =
+      await import('./locations/queries');
+
+    const locationRows = await getLocations(
+      apiDb.db,
+      context.organization.id
+    );
+
+    return {
+      locations: locationRows
+    };
+  });
+
   api.get('/v1/reviews', async (request, reply) => {
     const sessionToken =
       getSessionTokenFromRequest(request);

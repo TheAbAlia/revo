@@ -7,15 +7,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { redirect } from 'next/navigation';
-import { and, count, eq, sql } from 'drizzle-orm';
-import { db } from '@/lib/db/drizzle';
-import {
-  locations,
-  providerConnections,
-  responses,
-  reviews
-} from '@/lib/db/schema';
-import { getOrganizationForUser } from '@/lib/db/queries';
+import { getLocations } from '@/lib/api/server';
 import {
   createLocation,
   syncLocationReviews
@@ -71,90 +63,29 @@ const googleConnectionMessages: Record<
   }
 };
 
-function formatSyncTime(value: Date) {
+function formatSyncTime(value: string) {
   return new Intl.DateTimeFormat('en', {
     dateStyle: 'medium',
     timeStyle: 'short'
-  }).format(value);
+  }).format(new Date(value));
 }
 
 export default async function LocationsPage({
   searchParams
 }: LocationsPageProps) {
-  const membership = await getOrganizationForUser();
+  const data = await getLocations();
 
-  if (!membership) {
+  if (!data) {
     redirect('/sign-in');
   }
-
-  const organizationId = membership.organization.id;
 
   const params = await searchParams;
   const googleStatus = params.google
     ? googleConnectionMessages[params.google]
     : null;
 
-  const organizationLocations = await db
-    .select({
-      id: locations.id,
-      name: locations.name,
-      provider: locations.provider,
-      externalId: locations.externalId,
-      providerConnectionId: locations.providerConnectionId,
-      providerConnectionStatus: providerConnections.status,
-      lastSyncAttemptAt: locations.lastSyncAttemptAt,
-      lastSyncedAt: locations.lastSyncedAt,
-      lastSyncError: locations.lastSyncError,
-      reviewCount: count(reviews.id),
-      needsResponseCount: sql<number>`
-        count(${reviews.id}) filter (
-          where ${reviews.id} is not null
-          and ${responses.id} is null
-        )
-      `,
-      respondedCount: sql<number>`
-        count(${responses.id})
-      `
-    })
-    .from(locations)
-    .leftJoin(
-      providerConnections,
-      and(
-        eq(
-          providerConnections.id,
-          locations.providerConnectionId
-        ),
-        eq(
-          providerConnections.organizationId,
-          organizationId
-        )
-      )
-    )
-    .leftJoin(
-      reviews,
-      and(
-        eq(reviews.locationId, locations.id),
-        eq(reviews.organizationId, organizationId)
-      )
-    )
-    .leftJoin(
-      responses,
-      and(
-        eq(responses.reviewId, reviews.id),
-        eq(responses.organizationId, organizationId)
-      )
-    )
-    .where(eq(locations.organizationId, organizationId))
-    .groupBy(
-      locations.id,
-      locations.name,
-      locations.provider,
-      locations.externalId,
-      locations.providerConnectionId,
-      providerConnections.status,
-      locations.createdAt
-    )
-    .orderBy(locations.createdAt);
+  const organizationLocations =
+    data.locations;
 
   return (
     <div className="h-full overflow-y-auto bg-background">

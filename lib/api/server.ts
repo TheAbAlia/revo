@@ -335,4 +335,164 @@ export async function publishReviewResponse(
     success: true as const
   };
 }
+export type LocationListItem = {
+  id: number;
+  name: string;
+  provider: string | null;
+  externalId: string | null;
+  providerConnectionId: number | null;
+  providerConnectionStatus: string | null;
+  lastSyncAttemptAt: string | null;
+  lastSyncedAt: string | null;
+  lastSyncError: string | null;
+  reviewCount: number;
+  needsResponseCount: number;
+  respondedCount: number;
+};
 
+export async function getLocations() {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return null;
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/locations`,
+    {
+      headers: {
+        cookie: `session=${session}`
+      },
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      'Could not load locations'
+    );
+  }
+
+  return (await response.json()) as {
+    locations: LocationListItem[];
+  };
+}
+
+export async function createLocation(
+  name: string
+) {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/locations`,
+    {
+      method: 'POST',
+      headers: {
+        cookie: `session=${session}`,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({ name }),
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  if (response.status === 400) {
+    return {
+      success: false as const,
+      error: 'Invalid location name'
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      error: 'Could not create location'
+    };
+  }
+
+  return {
+    success: true as const
+  };
+}
+
+export async function syncLocationReviews(
+  locationId: string
+) {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/locations/${encodeURIComponent(locationId)}/sync`,
+    {
+      method: 'POST',
+      headers: {
+        cookie: `session=${session}`
+      },
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  if (
+    response.status === 400 ||
+    response.status === 404 ||
+    response.status === 409
+  ) {
+    const body = await response
+      .json()
+      .catch(() => null);
+
+    return {
+      success: false as const,
+      error:
+        body &&
+        typeof body.error === 'string'
+          ? body.error
+          : 'Could not sync location'
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      error: 'Could not sync location'
+    };
+  }
+
+  return {
+    success: true as const
+  };
+}

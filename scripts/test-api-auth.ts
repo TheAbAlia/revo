@@ -1002,6 +1002,158 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
         false
       );
 
+      const locationsResponse = await api.inject({
+        method: 'GET',
+        url: '/v1/locations',
+        headers: {
+          cookie: `session=${token}`
+        }
+      });
+
+      assert.equal(
+        locationsResponse.statusCode,
+        200
+      );
+
+      const locationsBody =
+        locationsResponse.json();
+
+      assert.equal(
+        locationsBody.locations.length,
+        1
+      );
+      assert.equal(
+        locationsBody.locations[0].id,
+        locationA.id
+      );
+      assert.equal(
+        locationsBody.locations[0].name,
+        'Tenant A Location'
+      );
+      assert.equal(
+        locationsBody.locations[0].reviewCount,
+        1
+      );
+      assert.equal(
+        locationsBody.locations[0]
+          .needsResponseCount,
+        1
+      );
+      assert.equal(
+        locationsBody.locations[0]
+          .respondedCount,
+        0
+      );
+
+      assert.equal(
+        locationsBody.locations.some(
+          (location: {
+            id: number;
+          }) => location.id === locationB.id
+        ),
+        false
+      );
+
+      const createLocationResponse =
+        await api.inject({
+          method: 'POST',
+          url: '/v1/locations',
+          headers: {
+            cookie: `session=${token}`
+          },
+          payload: {
+            name: '  API Created Location  '
+          }
+        });
+
+      assert.equal(
+        createLocationResponse.statusCode,
+        200
+      );
+
+      const createLocationBody =
+        createLocationResponse.json();
+
+      assert.equal(
+        createLocationBody.location.name,
+        'API Created Location'
+      );
+
+      const [createdLocation] =
+        await workerDb.db
+          .select({
+            id: locations.id,
+            organizationId:
+              locations.organizationId,
+            name: locations.name
+          })
+          .from(locations)
+          .where(
+            eq(
+              locations.id,
+              createLocationBody.location.id
+            )
+          )
+          .limit(1);
+
+      assert.ok(createdLocation);
+      assert.equal(
+        createdLocation.organizationId,
+        organizationA.id
+      );
+      assert.equal(
+        createdLocation.name,
+        'API Created Location'
+      );
+
+      const syncOwnUnconnectedResponse =
+        await api.inject({
+          method: 'POST',
+          url:
+            `/v1/locations/${locationA.id}/sync`,
+          headers: {
+            cookie: `session=${token}`
+          }
+        });
+
+      assert.equal(
+        syncOwnUnconnectedResponse.statusCode,
+        409
+      );
+
+      const syncOtherTenantResponse =
+        await api.inject({
+          method: 'POST',
+          url:
+            `/v1/locations/${locationB.id}/sync`,
+          headers: {
+            cookie: `session=${token}`
+          }
+        });
+
+      assert.equal(
+        syncOtherTenantResponse.statusCode,
+        404
+      );
+
+      const [crossTenantSyncJob] =
+        await workerDb.db
+          .select({
+            id: jobs.id
+          })
+          .from(jobs)
+          .where(
+            eq(
+              jobs.dedupeKey,
+              `sync-provider-reviews:${organizationA.id}:${locationB.id}`
+            )
+          )
+          .limit(1);
+
+      assert.equal(
+        crossTenantSyncJob,
+        undefined
+      );
 
       const generateOwnResponse = await api.inject({
         method: 'POST',
