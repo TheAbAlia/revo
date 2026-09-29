@@ -1058,5 +1058,213 @@ export function buildApi() {
     }
   );
 
+  api.get(
+    '/v1/settings',
+    async (request, reply) => {
+      const sessionToken =
+        getSessionTokenFromRequest(request);
+
+      if (!sessionToken) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const context =
+        await resolveAuthenticatedContext(
+          apiDb.db,
+          sessionToken
+        );
+
+      if (!context) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      return {
+        settings: {
+          user: context.user,
+          organization: context.organization,
+          role: context.role
+        }
+      };
+    }
+  );
+
+  api.put(
+    '/v1/settings/account',
+    async (request, reply) => {
+      const sessionToken =
+        getSessionTokenFromRequest(request);
+
+      if (!sessionToken) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const context =
+        await resolveAuthenticatedContext(
+          apiDb.db,
+          sessionToken
+        );
+
+      if (!context) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const body = request.body as {
+        name?: unknown;
+        email?: unknown;
+      } | null;
+
+      const name =
+        typeof body?.name === 'string'
+          ? body.name.trim()
+          : '';
+
+      const email =
+        typeof body?.email === 'string'
+          ? body.email.trim()
+          : '';
+
+      if (!name) {
+        return reply.code(400).send({
+          error: 'Name is required'
+        });
+      }
+
+      if (name.length > 100) {
+        return reply.code(400).send({
+          error: 'Name must be 100 characters or fewer.'
+        });
+      }
+
+      if (
+        !email ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      ) {
+        return reply.code(400).send({
+          error: 'Invalid email address'
+        });
+      }
+
+      const { updateSettingsAccount } =
+        await import('./settings/mutations');
+
+      const result =
+        await updateSettingsAccount(
+          apiDb.db,
+          context.user.id,
+          name,
+          email
+        );
+
+      if (!result.success) {
+        return reply.code(
+          result.error === 'User not found.'
+            ? 404
+            : 409
+        ).send({
+          error: result.error
+        });
+      }
+
+      return {
+        success: true,
+        user: result.user
+      };
+    }
+  );
+
+  api.put(
+    '/v1/settings/password',
+    async (request, reply) => {
+      const sessionToken =
+        getSessionTokenFromRequest(request);
+
+      if (!sessionToken) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const context =
+        await resolveAuthenticatedContext(
+          apiDb.db,
+          sessionToken
+        );
+
+      if (!context) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const body = request.body as {
+        currentPassword?: unknown;
+        newPassword?: unknown;
+        confirmPassword?: unknown;
+      } | null;
+
+      const currentPassword =
+        typeof body?.currentPassword === 'string'
+          ? body.currentPassword
+          : '';
+
+      const newPassword =
+        typeof body?.newPassword === 'string'
+          ? body.newPassword
+          : '';
+
+      const confirmPassword =
+        typeof body?.confirmPassword === 'string'
+          ? body.confirmPassword
+          : '';
+
+      if (
+        currentPassword.length < 8 ||
+        currentPassword.length > 100 ||
+        newPassword.length < 8 ||
+        newPassword.length > 100 ||
+        confirmPassword.length < 8 ||
+        confirmPassword.length > 100
+      ) {
+        return reply.code(400).send({
+          error: 'Passwords must be between 8 and 100 characters.'
+        });
+      }
+
+      const { updateSettingsPassword } =
+        await import('./settings/mutations');
+
+      const result =
+        await updateSettingsPassword(
+          apiDb.db,
+          context.user.id,
+          currentPassword,
+          newPassword,
+          confirmPassword
+        );
+
+      if (!result.success) {
+        return reply.code(
+          result.error === 'User not found.'
+            ? 404
+            : 400
+        ).send({
+          error: result.error
+        });
+      }
+
+      return {
+        success: true
+      };
+    }
+  );
+
   return api;
 }

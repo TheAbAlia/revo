@@ -875,3 +875,175 @@ export async function getAnalytics() {
     analytics: body.analytics
   };
 }
+
+export async function getSettings() {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/settings`,
+    {
+      headers: {
+        cookie: `session=${session}`
+      },
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      error: 'Could not load settings'
+    };
+  }
+
+  const body = (await response.json()) as {
+    settings: {
+      user: {
+        id: number;
+        name: string | null;
+        email: string;
+      };
+      organization: {
+        id: number;
+        name: string;
+      };
+      role: string;
+    };
+  };
+
+  return {
+    success: true as const,
+    settings: body.settings
+  };
+}
+
+export async function saveSettingsAccount(
+  name: string,
+  email: string
+) {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/settings/account`,
+    {
+      method: 'PUT',
+      headers: {
+        cookie: `session=${session}`,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        name,
+        email
+      }),
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  if (!response.ok) {
+    const body = await response
+      .json()
+      .catch(() => null);
+
+    return {
+      success: false as const,
+      error:
+        body &&
+        typeof body.error === 'string'
+          ? body.error
+          : 'Could not update account'
+    };
+  }
+
+  return {
+    success: true as const
+  };
+}
+
+export async function saveSettingsPassword(
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string
+) {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/settings/password`,
+    {
+      method: 'PUT',
+      headers: {
+        cookie: `session=${session}`,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        currentPassword,
+        newPassword,
+        confirmPassword
+      }),
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  if (!response.ok) {
+    const body = await response
+      .json()
+      .catch(() => null);
+
+    return {
+      success: false as const,
+      error:
+        body &&
+        typeof body.error === 'string'
+          ? body.error
+          : 'Could not update password'
+    };
+  }
+
+  return {
+    success: true as const
+  };
+}

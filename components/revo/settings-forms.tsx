@@ -1,7 +1,10 @@
 'use client';
 
 import { useActionState } from 'react';
-import { updateAccount, updatePassword } from '@/app/(login)/actions';
+import {
+  updateSettingsAccount,
+  updateSettingsPassword
+} from '@/app/(dashboard)/settings/actions';
 
 type AccountState = {
   name?: string;
@@ -28,7 +31,7 @@ export function AccountSettingsForm({
   const [state, action, pending] = useActionState<
     AccountState,
     FormData
-  >(updateAccount, {});
+  >(updateSettingsAccount, {});
 
   return (
     <form action={action} className="mt-4 rounded-lg border bg-surface">
@@ -95,7 +98,7 @@ export function PasswordSettingsForm() {
   const [state, action, pending] = useActionState<
     PasswordState,
     FormData
-  >(updatePassword, {});
+  >(updateSettingsPassword, {});
 
   return (
     <form action={action} className="mt-4 rounded-lg border bg-surface">

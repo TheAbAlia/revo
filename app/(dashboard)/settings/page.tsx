@@ -4,20 +4,24 @@ import {
   AccountSettingsForm,
   PasswordSettingsForm
 } from '@/components/revo/settings-forms';
-import {
-  getOrganizationForUser,
-  getUser
-} from '@/lib/db/queries';
+import { getSettings } from '@/lib/api/server';
 
 export default async function SettingsPage() {
-  const [user, membership] = await Promise.all([
-    getUser(),
-    getOrganizationForUser()
-  ]);
+  const result = await getSettings();
 
-  if (!user || !membership) {
+  if (
+    !result.success &&
+    result.error === 'Unauthorized'
+  ) {
     redirect('/sign-in');
   }
+
+  if (!result.success) {
+    throw new Error(result.error);
+  }
+
+  const { user, organization, role } =
+    result.settings;
 
   return (
     <div className="h-full overflow-y-auto bg-background">
@@ -63,14 +67,14 @@ export default async function SettingsPage() {
               Workspace name
             </div>
             <div className="mt-1 text-[13px] font-medium">
-              {membership.organization.name}
+              {organization.name}
             </div>
 
             <div className="mt-4 text-[11px] text-muted-foreground">
               Your role
             </div>
             <div className="mt-1 text-[13px] font-medium capitalize">
-              {membership.role}
+              {role}
             </div>
           </div>
         </section>

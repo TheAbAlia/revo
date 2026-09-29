@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { and, eq, sql } from 'drizzle-orm';
 
+import {
+  comparePasswords,
+  hashPassword
+} from '@/lib/auth/session';
 import { signToken } from '@/lib/auth/token';
 import { createWorkerDb } from '@/lib/db/worker';
 import {
@@ -2073,6 +2077,303 @@ test('Analytics API is tenant scoped', async () => {
       await workerDb.db
         .delete(users)
         .where(eq(users.id, userId));
+    }
+
+    await workerDb.client.end();
+  }
+});
+
+
+test('Settings API is authenticated and user scoped', async () => {
+  const workerDb = createWorkerDb();
+  const suffix = `${Date.now()}-${process.pid}`;
+
+  let userId: number | null = null;
+  let otherUserId: number | null = null;
+  let organizationId: number | null = null;
+
+  const currentPassword = 'current-password-123';
+  const newPassword = 'new-password-456';
+
+  try {
+    const passwordHash =
+      await hashPassword(currentPassword);
+
+    const [user] = await workerDb.db
+      .insert(users)
+      .values({
+        name: 'Settings API test user',
+        email: `settings-${suffix}@example.test`,
+        passwordHash
+      })
+      .returning({
+        id: users.id
+      });
+
+    const [otherUser] = await workerDb.db
+      .insert(users)
+      .values({
+        name: 'Other Settings user',
+        email: `settings-other-${suffix}@example.test`,
+        passwordHash
+      })
+      .returning({
+        id: users.id
+      });
+
+    assert.ok(user);
+    assert.ok(otherUser);
+
+    userId = user.id;
+    otherUserId = otherUser.id;
+
+    const [organization] = await workerDb.db
+      .insert(organizations)
+      .values({
+        name: 'Settings Workspace',
+        slug: `settings-${suffix}`
+      })
+      .returning({
+        id: organizations.id
+      });
+
+    assert.ok(organization);
+    organizationId = organization.id;
+
+    await workerDb.db
+      .insert(organizationMembers)
+      .values({
+        organizationId: organization.id,
+        userId: user.id,
+        role: 'owner'
+      });
+
+    const token = await signToken({
+      user: {
+        id: user.id
+      },
+      expires: new Date(
+        Date.now() + 60 * 60 * 1000
+      ).toISOString()
+    });
+
+    const api = buildApi();
+
+    try {
+      const unauthorized = await api.inject({
+        method: 'GET',
+        url: '/v1/settings'
+      });
+
+      assert.equal(unauthorized.statusCode, 401);
+
+      const settingsResponse = await api.inject({
+        method: 'GET',
+        url: '/v1/settings',
+        headers: {
+          cookie: `session=${token}`
+        }
+      });
+
+      assert.equal(settingsResponse.statusCode, 200);
+
+      const settingsBody = settingsResponse.json();
+
+      assert.deepEqual(settingsBody.settings, {
+        user: {
+          id: user.id,
+          name: 'Settings API test user',
+          email: `settings-${suffix}@example.test`
+        },
+        organization: {
+          id: organization.id,
+          name: 'Settings Workspace'
+        },
+        role: 'owner'
+      });
+
+      const duplicateEmailResponse =
+        await api.inject({
+          method: 'PUT',
+          url: '/v1/settings/account',
+          headers: {
+            cookie: `session=${token}`
+          },
+          payload: {
+            name: 'Updated Settings User',
+            email: `settings-other-${suffix}@example.test`
+          }
+        });
+
+      assert.equal(
+        duplicateEmailResponse.statusCode,
+        409
+      );
+      assert.deepEqual(
+        duplicateEmailResponse.json(),
+        {
+          error:
+            'An account with this email already exists.'
+        }
+      );
+
+      const updatedEmail =
+        `settings-updated-${suffix}@example.test`;
+
+      const accountResponse = await api.inject({
+        method: 'PUT',
+        url: '/v1/settings/account',
+        headers: {
+          cookie: `session=${token}`
+        },
+        payload: {
+          name: 'Updated Settings User',
+          email: updatedEmail
+        }
+      });
+
+      assert.equal(accountResponse.statusCode, 200);
+      assert.deepEqual(accountResponse.json(), {
+        success: true,
+        user: {
+          name: 'Updated Settings User',
+          email: updatedEmail
+        }
+      });
+
+      const [storedUser] = await workerDb.db
+        .select({
+          name: users.name,
+          email: users.email
+        })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+
+      assert.deepEqual(storedUser, {
+        name: 'Updated Settings User',
+        email: updatedEmail
+      });
+
+      const [storedOtherUser] = await workerDb.db
+        .select({
+          name: users.name,
+          email: users.email
+        })
+        .from(users)
+        .where(eq(users.id, otherUser.id))
+        .limit(1);
+
+      assert.deepEqual(storedOtherUser, {
+        name: 'Other Settings user',
+        email: `settings-other-${suffix}@example.test`
+      });
+
+      const wrongPasswordResponse =
+        await api.inject({
+          method: 'PUT',
+          url: '/v1/settings/password',
+          headers: {
+            cookie: `session=${token}`
+          },
+          payload: {
+            currentPassword: 'wrong-password-123',
+            newPassword,
+            confirmPassword: newPassword
+          }
+        });
+
+      assert.equal(
+        wrongPasswordResponse.statusCode,
+        400
+      );
+      assert.deepEqual(
+        wrongPasswordResponse.json(),
+        {
+          error: 'Current password is incorrect.'
+        }
+      );
+
+      const mismatchResponse = await api.inject({
+        method: 'PUT',
+        url: '/v1/settings/password',
+        headers: {
+          cookie: `session=${token}`
+        },
+        payload: {
+          currentPassword,
+          newPassword,
+          confirmPassword: 'different-password-789'
+        }
+      });
+
+      assert.equal(mismatchResponse.statusCode, 400);
+      assert.deepEqual(mismatchResponse.json(), {
+        error:
+          'New password and confirmation password do not match.'
+      });
+
+      const passwordResponse = await api.inject({
+        method: 'PUT',
+        url: '/v1/settings/password',
+        headers: {
+          cookie: `session=${token}`
+        },
+        payload: {
+          currentPassword,
+          newPassword,
+          confirmPassword: newPassword
+        }
+      });
+
+      assert.equal(passwordResponse.statusCode, 200);
+      assert.deepEqual(passwordResponse.json(), {
+        success: true
+      });
+
+      const [passwordUser] = await workerDb.db
+        .select({
+          passwordHash: users.passwordHash
+        })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+
+      assert.ok(passwordUser);
+      assert.equal(
+        await comparePasswords(
+          newPassword,
+          passwordUser.passwordHash
+        ),
+        true
+      );
+      assert.equal(
+        await comparePasswords(
+          currentPassword,
+          passwordUser.passwordHash
+        ),
+        false
+      );
+    } finally {
+      await api.close();
+    }
+  } finally {
+    if (organizationId !== null) {
+      await workerDb.db
+        .delete(organizations)
+        .where(eq(organizations.id, organizationId));
+    }
+
+    if (userId !== null) {
+      await workerDb.db
+        .delete(users)
+        .where(eq(users.id, userId));
+    }
+
+    if (otherUserId !== null) {
+      await workerDb.db
+        .delete(users)
+        .where(eq(users.id, otherUserId));
     }
 
     await workerDb.client.end();
