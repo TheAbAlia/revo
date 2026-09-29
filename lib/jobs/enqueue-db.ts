@@ -1,6 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm';
 
-import type { createWorkerDb } from '@/lib/db/worker';
+import type { ApiDb } from '@/server/api/db';
 import { jobs } from '@/lib/db/schema';
 import type {
   JobPayload,
@@ -16,7 +16,7 @@ export type EnqueueJobInput<T extends JobType> = {
   maxAttempts?: number;
 };
 
-type JobDb = ReturnType<typeof createWorkerDb>['db'];
+type JobDb = ApiDb;
 
 export async function enqueueJobWithDb<T extends JobType>(
   db: JobDb,

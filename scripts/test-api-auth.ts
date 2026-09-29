@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { signToken } from '@/lib/auth/token';
 import { createWorkerDb } from '@/lib/db/worker';
 import {
+  jobs,
   locations,
   organizationMembers,
   organizations,
@@ -227,20 +228,28 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
     assert.ok(locationA);
     assert.ok(locationB);
 
-    await workerDb.db.insert(reviews).values({
-      organizationId: organizationA.id,
-      locationId: locationA.id,
-      provider: 'google',
-      externalId: `tenant-a-review-${suffix}`,
-      authorName: 'Tenant A Reviewer',
-      authorInitials: 'TA',
-      rating: 5,
-      content: 'Tenant A review',
-      receivedAt: new Date()
-    });
+    const [reviewA] = await workerDb.db
+      .insert(reviews)
+      .values({
+        organizationId: organizationA.id,
+        locationId: locationA.id,
+        provider: 'google',
+        externalId: `tenant-a-review-${suffix}`,
+        authorName: 'Tenant A Reviewer',
+        authorInitials: 'TA',
+        rating: 5,
+        content: 'Tenant A review',
+        receivedAt: new Date()
+      })
+      .returning({
+        id: reviews.id
+      });
 
-    await workerDb.db.insert(reviews).values([
-      {
+    assert.ok(reviewA);
+
+    const [reviewB] = await workerDb.db
+      .insert(reviews)
+      .values({
         organizationId: organizationB.id,
         locationId: locationB.id,
         provider: 'google',
@@ -250,7 +259,14 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
         rating: 4,
         content: 'Tenant B review one',
         receivedAt: new Date()
-      },
+      })
+      .returning({
+        id: reviews.id
+      });
+
+    assert.ok(reviewB);
+
+    await workerDb.db.insert(reviews).values([
       {
         organizationId: organizationB.id,
         locationId: locationB.id,
@@ -333,6 +349,68 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
         ),
         false
       );
+
+
+      const generateOwnResponse = await api.inject({
+        method: 'POST',
+        url: `/v1/reviews/${reviewA.id}/generate`,
+        headers: {
+          cookie: `session=${token}`
+        }
+      });
+
+      assert.equal(
+        generateOwnResponse.statusCode,
+        200
+      );
+
+      const [ownJob] = await workerDb.db
+        .select({
+          organizationId: jobs.organizationId,
+          payload: jobs.payload
+        })
+        .from(jobs)
+        .where(
+          eq(
+            jobs.dedupeKey,
+            `generate-ai-draft:${organizationA.id}:${reviewA.id}`
+          )
+        )
+        .limit(1);
+
+      assert.ok(ownJob);
+      assert.equal(
+        ownJob.organizationId,
+        organizationA.id
+      );
+
+      const generateOtherResponse = await api.inject({
+        method: 'POST',
+        url: `/v1/reviews/${reviewB.id}/generate`,
+        headers: {
+          cookie: `session=${token}`
+        }
+      });
+
+      assert.equal(
+        generateOtherResponse.statusCode,
+        404
+      );
+
+      const [crossTenantJob] = await workerDb.db
+        .select({
+          id: jobs.id
+        })
+        .from(jobs)
+        .where(
+          eq(
+            jobs.dedupeKey,
+            `generate-ai-draft:${organizationA.id}:${reviewB.id}`
+          )
+        )
+        .limit(1);
+
+      assert.equal(crossTenantJob, undefined);
     } finally {
       await api.close();
     }

@@ -55,6 +55,69 @@ export function buildApi() {
     };
   });
 
+  api.post<{
+    Params: {
+      reviewId: string;
+    };
+  }>(
+    '/v1/reviews/:reviewId/generate',
+    async (request, reply) => {
+      const sessionToken =
+        getSessionTokenFromRequest(request);
+
+      if (!sessionToken) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const context =
+        await resolveAuthenticatedContext(
+          apiDb.db,
+          sessionToken
+        );
+
+      if (!context) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const reviewId = Number(
+        request.params.reviewId
+      );
+
+      if (
+        !Number.isInteger(reviewId) ||
+        reviewId <= 0
+      ) {
+        return reply.code(400).send({
+          error: 'Invalid review'
+        });
+      }
+
+      const { generateReviewResponse } =
+        await import('./reviews/mutations');
+
+      const result = await generateReviewResponse(
+        apiDb.db,
+        context.organization.id,
+        reviewId
+      );
+
+      if (!result) {
+        return reply.code(404).send({
+          error: 'Review not found'
+        });
+      }
+
+      return {
+        success: true,
+        ...result
+      };
+    }
+  );
+
   api.get('/v1/reviews', async (request, reply) => {
     const sessionToken =
       getSessionTokenFromRequest(request);

@@ -2,6 +2,9 @@
 
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import {
+  generateReviewResponse
+} from '@/lib/api/server';
 import { db } from '@/lib/db/drizzle';
 import {
   locations,
@@ -64,42 +67,15 @@ async function getAuthorizedReview(reviewId: number) {
 }
 
 export async function generateResponse(reviewId: string) {
-  const numericReviewId = Number(reviewId);
+  const result = await generateReviewResponse(
+    reviewId
+  );
 
-  if (!Number.isInteger(numericReviewId)) {
-    throw new Error('Invalid review');
-  }
-
-  const { organizationId } =
-    await getAuthorizedReview(numericReviewId);
-
-  try {
-    await enqueueJob({
-      organizationId,
-      type: 'generate-ai-draft',
-      dedupeKey: `generate-ai-draft:${organizationId}:${numericReviewId}`,
-      payload: {
-        reviewId: numericReviewId,
-        force: true
-      }
-    });
-
+  if (result.success) {
     revalidatePath('/');
-
-    return {
-      success: true as const
-    };
-  } catch (error) {
-    console.error(
-      'Review response generation enqueue failed',
-      error instanceof Error ? error.message : 'Unknown error'
-    );
-
-    return {
-      success: false as const,
-      error: 'Could not start response generation. Please try again.'
-    };
   }
+
+  return result;
 }
 
 export async function retryResponseGeneration(

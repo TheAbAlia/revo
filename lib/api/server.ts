@@ -85,3 +85,47 @@ export async function getReviewInbox(): Promise<
   return body.items;
 }
 
+export async function generateReviewResponse(
+  reviewId: string
+) {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/reviews/${encodeURIComponent(reviewId)}/generate`,
+    {
+      method: 'POST',
+      headers: {
+        cookie: `session=${session}`
+      },
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      error:
+        'Could not start response generation. Please try again.'
+    };
+  }
+
+  return {
+    success: true as const
+  };
+}
+
