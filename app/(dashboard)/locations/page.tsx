@@ -71,6 +71,13 @@ const googleConnectionMessages: Record<
   }
 };
 
+function formatSyncTime(value: Date) {
+  return new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  }).format(value);
+}
+
 export default async function LocationsPage({
   searchParams
 }: LocationsPageProps) {
@@ -95,6 +102,9 @@ export default async function LocationsPage({
       externalId: locations.externalId,
       providerConnectionId: locations.providerConnectionId,
       providerConnectionStatus: providerConnections.status,
+      lastSyncAttemptAt: locations.lastSyncAttemptAt,
+      lastSyncedAt: locations.lastSyncedAt,
+      lastSyncError: locations.lastSyncError,
       reviewCount: count(reviews.id),
       needsResponseCount: sql<number>`
         count(${reviews.id}) filter (
@@ -259,6 +269,35 @@ export default async function LocationsPage({
                               </>
                             )}
                           </div>
+
+                          {connected ? (
+                            <div className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                              {location.lastSyncError ? (
+                                <>
+                                  <span>Last sync failed</span>
+                                  {location.lastSyncAttemptAt ? (
+                                    <>
+                                      {' · '}
+                                      {formatSyncTime(location.lastSyncAttemptAt)}
+                                    </>
+                                  ) : null}
+                                </>
+                              ) : location.lastSyncedAt ? (
+                                <>
+                                  Last synced{' '}
+                                  {formatSyncTime(location.lastSyncedAt)}
+                                </>
+                              ) : (
+                                'Not synced yet'
+                              )}
+                            </div>
+                          ) : null}
+
+                          {connected && location.lastSyncError ? (
+                            <div className="mt-0.5 text-[10px] text-muted-foreground">
+                              Revo couldn't complete the latest review sync.
+                            </div>
+                          ) : null}
                         </div>
                       </div>
 
@@ -276,7 +315,9 @@ export default async function LocationsPage({
                               className="flex h-8 items-center gap-1.5 rounded-md border bg-background px-2.5 text-[11px] font-medium transition-colors hover:bg-muted"
                             >
                               <RefreshCw className="h-3 w-3" />
-                              Sync reviews
+                              {location.lastSyncError
+                                ? 'Retry sync'
+                                : 'Sync reviews'}
                             </button>
                           </form>
                         ) : needsReauth ? (
