@@ -39,10 +39,29 @@ export function ReviewInbox({
     return () => window.clearInterval(interval);
   }, [hasGeneratingResponse, router]);
 
-  const [selectedId, setSelectedId] = useState(reviews[0]?.id);
+  const [activeTab, setActiveTab] = useState<
+    'needs-response' | 'drafts' | 'all'
+  >('needs-response');
+
+  const filteredReviews = reviews.filter((review) => {
+    if (activeTab === 'needs-response') {
+      return review.responseStatus === 'unanswered';
+    }
+
+    if (activeTab === 'drafts') {
+      return review.responseStatus === 'draft';
+    }
+
+    return true;
+  });
+
+  const [selectedId, setSelectedId] = useState(
+    filteredReviews[0]?.id
+  );
 
   const selectedReview =
-    reviews.find((review) => review.id === selectedId) ?? reviews[0];
+    filteredReviews.find((review) => review.id === selectedId) ??
+    filteredReviews[0];
 
   const needsResponseCount = reviews.filter(
     (review) => review.responseStatus === 'unanswered'
@@ -114,34 +133,79 @@ export function ReviewInbox({
         <div className="flex min-h-0 flex-1">
           <section className="flex w-[380px] shrink-0 flex-col border-r bg-background">
             <div className="flex h-11 shrink-0 items-center gap-4 border-b px-4">
-              <button className="text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => setActiveTab('needs-response')}
+                className={[
+                  'text-xs',
+                  activeTab === 'needs-response'
+                    ? 'font-medium text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                ].join(' ')}
+              >
                 Needs response
                 <span className="ml-1.5 text-muted-foreground">
                   {needsResponseCount}
                 </span>
               </button>
 
-              <button className="text-xs text-muted-foreground hover:text-foreground">
+              <button
+                type="button"
+                onClick={() => setActiveTab('drafts')}
+                className={[
+                  'text-xs',
+                  activeTab === 'drafts'
+                    ? 'font-medium text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                ].join(' ')}
+              >
                 Drafts
-                <span className="ml-1.5">
+                <span className="ml-1.5 text-muted-foreground">
                   {draftCount}
                 </span>
               </button>
 
-              <button className="text-xs text-muted-foreground hover:text-foreground">
+              <button
+                type="button"
+                onClick={() => setActiveTab('all')}
+                className={[
+                  'text-xs',
+                  activeTab === 'all'
+                    ? 'font-medium text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                ].join(' ')}
+              >
                 All
+                <span className="ml-1.5 text-muted-foreground">
+                  {reviews.length}
+                </span>
               </button>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto">
-              {reviews.map((review) => (
-                <ReviewListItem
-                  key={review.id}
-                  review={review}
-                  selected={review.id === selectedReview?.id}
-                  onSelect={() => setSelectedId(review.id)}
-                />
-              ))}
+              {filteredReviews.length > 0 ? (
+                filteredReviews.map((review) => (
+                  <ReviewListItem
+                    key={review.id}
+                    review={review}
+                    selected={review.id === selectedReview?.id}
+                    onSelect={() => setSelectedId(review.id)}
+                  />
+                ))
+              ) : (
+                <div className="px-4 py-10 text-center">
+                  <p className="text-xs font-medium">
+                    {activeTab === 'needs-response'
+                      ? 'No reviews need a response'
+                      : 'No drafts yet'}
+                  </p>
+                  <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">
+                    {activeTab === 'needs-response'
+                      ? 'You’re all caught up.'
+                      : 'Generated or saved drafts will appear here.'}
+                  </p>
+                </div>
+              )}
             </div>
           </section>
 
