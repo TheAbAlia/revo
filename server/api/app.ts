@@ -55,5 +55,41 @@ export function buildApi() {
     };
   });
 
+  api.get('/v1/dashboard/shell', async (request, reply) => {
+    const sessionToken =
+      getSessionTokenFromRequest(request);
+
+    if (!sessionToken) {
+      return reply.code(401).send({
+        error: 'Unauthorized'
+      });
+    }
+
+    const context =
+      await resolveAuthenticatedContext(
+        apiDb.db,
+        sessionToken
+      );
+
+    if (!context) {
+      return reply.code(401).send({
+        error: 'Unauthorized'
+      });
+    }
+
+    const { getDashboardShell } =
+      await import('./dashboard/queries');
+
+    const shell = await getDashboardShell(
+      apiDb.db,
+      context.organization.id
+    );
+
+    return {
+      organization: context.organization,
+      inboxCount: shell.inboxCount
+    };
+  });
+
   return api;
 }
