@@ -18,7 +18,9 @@
     "scheduler": "tsx scripts/scheduler.ts",
     "test:provider-sync-scheduler": "tsx --test --test-concurrency=1 scripts/test-provider-sync-scheduler.ts",
     "test:ai": "tsx --test --test-concurrency=1 scripts/test-ai-prompt-boundary.ts",
-    "eval:ai": "tsx scripts/evaluate-ai-responses.ts"
+    "eval:ai": "tsx scripts/evaluate-ai-responses.ts",
+    "api": "tsx server/api/index.ts",
+    "test:api": "tsx --env-file=.env.local --test --test-concurrency=1 scripts/test-api-auth.ts"
   },
   "dependencies": {
     "@tailwindcss/postcss": "4.1.7",
@@ -32,6 +34,7 @@
     "dotenv": "^16.5.0",
     "drizzle-kit": "^0.31.1",
     "drizzle-orm": "^0.43.1",
+    "fastify": "^5.12.5",
     "jose": "^6.0.11",
     "lucide-react": "^0.511.0",
     "next": "15.6.0-canary.59",
