@@ -1854,3 +1854,227 @@ test('Automations API is tenant scoped', async () => {
     await workerDb.client.end();
   }
 });
+
+test('Analytics API is tenant scoped', async () => {
+  const workerDb = createWorkerDb();
+  const suffix = `${Date.now()}-${process.pid}`;
+
+  let userId: number | null = null;
+  let organizationAId: number | null = null;
+  let organizationBId: number | null = null;
+
+  try {
+    const [user] = await workerDb.db
+      .insert(users)
+      .values({
+        name: 'Analytics API test user',
+        email: `analytics-${suffix}@example.test`,
+        passwordHash: 'not-used-by-this-test'
+      })
+      .returning({
+        id: users.id
+      });
+
+    assert.ok(user);
+    userId = user.id;
+
+    const [organizationA] = await workerDb.db
+      .insert(organizations)
+      .values({
+        name: 'Analytics Tenant A',
+        slug: `analytics-a-${suffix}`
+      })
+      .returning({
+        id: organizations.id
+      });
+
+    const [organizationB] = await workerDb.db
+      .insert(organizations)
+      .values({
+        name: 'Analytics Tenant B',
+        slug: `analytics-b-${suffix}`
+      })
+      .returning({
+        id: organizations.id
+      });
+
+    assert.ok(organizationA);
+    assert.ok(organizationB);
+
+    organizationAId = organizationA.id;
+    organizationBId = organizationB.id;
+
+    await workerDb.db
+      .insert(organizationMembers)
+      .values({
+        organizationId: organizationA.id,
+        userId: user.id,
+        role: 'owner'
+      });
+
+    const [locationA] = await workerDb.db
+      .insert(locations)
+      .values({
+        organizationId: organizationA.id,
+        name: 'Analytics Location A'
+      })
+      .returning({
+        id: locations.id
+      });
+
+    const [locationB] = await workerDb.db
+      .insert(locations)
+      .values({
+        organizationId: organizationB.id,
+        name: 'Analytics Location B'
+      })
+      .returning({
+        id: locations.id
+      });
+
+    assert.ok(locationA);
+    assert.ok(locationB);
+
+    const tenantAReviews = await workerDb.db
+      .insert(reviews)
+      .values([
+        {
+          organizationId: organizationA.id,
+          locationId: locationA.id,
+          provider: 'google',
+          externalId: `analytics-a-1-${suffix}`,
+          authorName: 'Analytics Reviewer A1',
+          authorInitials: 'A1',
+          rating: 5,
+          content: 'Tenant A five star review',
+          receivedAt: new Date()
+        },
+        {
+          organizationId: organizationA.id,
+          locationId: locationA.id,
+          provider: 'google',
+          externalId: `analytics-a-2-${suffix}`,
+          authorName: 'Analytics Reviewer A2',
+          authorInitials: 'A2',
+          rating: 3,
+          content: 'Tenant A three star review',
+          receivedAt: new Date()
+        }
+      ])
+      .returning({
+        id: reviews.id
+      });
+
+    assert.equal(tenantAReviews.length, 2);
+
+    await workerDb.db.insert(responses).values({
+      organizationId: organizationA.id,
+      reviewId: tenantAReviews[0].id,
+      content: 'Tenant A response',
+      status: 'approved',
+      approvedAt: new Date()
+    });
+
+    await workerDb.db.insert(reviews).values({
+      organizationId: organizationB.id,
+      locationId: locationB.id,
+      provider: 'google',
+      externalId: `analytics-b-1-${suffix}`,
+      authorName: 'Analytics Reviewer B',
+      authorInitials: 'B',
+      rating: 1,
+      content: 'Tenant B review',
+      receivedAt: new Date()
+    });
+
+    const token = await signToken({
+      user: {
+        id: user.id
+      },
+      expires: new Date(
+        Date.now() + 60 * 60 * 1000
+      ).toISOString()
+    });
+
+    const api = buildApi();
+
+    try {
+      const response = await api.inject({
+        method: 'GET',
+        url: '/v1/analytics',
+        headers: {
+          cookie: `session=${token}`
+        }
+      });
+
+      assert.equal(response.statusCode, 200);
+
+      const body = response.json();
+      const analytics = body.analytics;
+
+      assert.equal(analytics.totalReviews, 2);
+      assert.equal(analytics.averageRating, 4);
+      assert.equal(analytics.respondedReviews, 1);
+      assert.equal(analytics.needsResponse, 1);
+      assert.equal(analytics.responseCoverage, 50);
+
+      assert.deepEqual(
+        analytics.ratingDistribution,
+        [
+          {
+            rating: 3,
+            count: 1
+          },
+          {
+            rating: 5,
+            count: 1
+          }
+        ]
+      );
+
+      assert.deepEqual(analytics.locations, [
+        {
+          id: locationA.id,
+          name: 'Analytics Location A',
+          totalReviews: 2,
+          averageRating: 4,
+          respondedReviews: 1
+        }
+      ]);
+
+      assert.equal(
+        analytics.locations.some(
+          (location: { name: string }) =>
+            location.name === 'Analytics Location B'
+        ),
+        false
+      );
+    } finally {
+      await api.close();
+    }
+  } finally {
+    if (organizationBId !== null) {
+      await workerDb.db
+        .delete(organizations)
+        .where(
+          eq(organizations.id, organizationBId)
+        );
+    }
+
+    if (organizationAId !== null) {
+      await workerDb.db
+        .delete(organizations)
+        .where(
+          eq(organizations.id, organizationAId)
+        );
+    }
+
+    if (userId !== null) {
+      await workerDb.db
+        .delete(users)
+        .where(eq(users.id, userId));
+    }
+
+    await workerDb.client.end();
+  }
+});

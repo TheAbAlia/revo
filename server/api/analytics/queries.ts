@@ -1,8 +1,20 @@
-import { and, count, eq, isNull, sql } from 'drizzle-orm';
-import { db } from '@/lib/db/drizzle';
-import { locations, responses, reviews } from '@/lib/db/schema';
+import {
+  and,
+  count,
+  eq,
+  isNull,
+  sql
+} from 'drizzle-orm';
+
+import {
+  locations,
+  responses,
+  reviews
+} from '@/lib/db/schema';
+import type { ApiDb } from '../db';
 
 export async function getAnalyticsOverview(
+  db: ApiDb,
   organizationId: number
 ) {
   const [summary] = await db

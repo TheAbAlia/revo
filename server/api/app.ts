@@ -1019,5 +1019,44 @@ export function buildApi() {
     }
   );
 
+  api.get(
+    '/v1/analytics',
+    async (request, reply) => {
+      const sessionToken =
+        getSessionTokenFromRequest(request);
+
+      if (!sessionToken) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const context =
+        await resolveAuthenticatedContext(
+          apiDb.db,
+          sessionToken
+        );
+
+      if (!context) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const { getAnalyticsOverview } =
+        await import('./analytics/queries');
+
+      const analytics =
+        await getAnalyticsOverview(
+          apiDb.db,
+          context.organization.id
+        );
+
+      return {
+        analytics
+      };
+    }
+  );
+
   return api;
 }

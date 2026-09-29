@@ -1,22 +1,23 @@
 import { redirect } from 'next/navigation';
 import { Star } from 'lucide-react';
-import { getAnalyticsOverview } from '@/lib/analytics/queries';
-import { getOrganizationForUser } from '@/lib/db/queries';
+import { getAnalytics } from '@/lib/api/server';
 
 function formatRating(value: number) {
   return value === 0 ? '—' : value.toFixed(1);
 }
 
 export default async function AnalyticsPage() {
-  const membership = await getOrganizationForUser();
+  const result = await getAnalytics();
 
-  if (!membership) {
-    redirect('/sign-in');
+  if (!result.success) {
+    if (result.error === 'Unauthorized') {
+      redirect('/sign-in');
+    }
+
+    throw new Error(result.error);
   }
 
-  const analytics = await getAnalyticsOverview(
-    membership.organization.id
-  );
+  const analytics = result.analytics;
 
   const ratingCounts = new Map(
     analytics.ratingDistribution.map((item) => [

@@ -813,3 +813,65 @@ export async function saveAutomations(
     success: true as const
   };
 }
+
+export async function getAnalytics() {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/analytics`,
+    {
+      headers: {
+        cookie: `session=${session}`
+      },
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      error: 'Could not load analytics'
+    };
+  }
+
+  const body = (await response.json()) as {
+    analytics: {
+      totalReviews: number;
+      averageRating: number;
+      respondedReviews: number;
+      needsResponse: number;
+      responseCoverage: number;
+      ratingDistribution: Array<{
+        rating: number;
+        count: number;
+      }>;
+      locations: Array<{
+        id: number;
+        name: string;
+        totalReviews: number;
+        averageRating: number;
+        respondedReviews: number;
+      }>;
+    };
+  };
+
+  return {
+    success: true as const,
+    analytics: body.analytics
+  };
+}
