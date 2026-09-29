@@ -251,7 +251,10 @@ export const updatePassword = validatedActionWithUser(
     await Promise.all([
       db
         .update(users)
-        .set({ passwordHash: newPasswordHash })
+        .set({
+          passwordHash: newPasswordHash,
+          updatedAt: new Date()
+        })
         .where(eq(users.id, user.id)),
       logActivity(userWithTeam?.teamId, user.id, ActivityType.UPDATE_PASSWORD)
     ]);
@@ -321,14 +324,44 @@ export const updateAccount = validatedActionWithUser(
   updateAccountSchema,
   async (data, _, user) => {
     const { name, email } = data;
+
+    const [existingUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    if (existingUser && existingUser.id !== user.id) {
+      return {
+        name,
+        email,
+        error: 'An account with this email already exists.'
+      };
+    }
+
     const userWithTeam = await getUserWithTeam(user.id);
 
     await Promise.all([
-      db.update(users).set({ name, email }).where(eq(users.id, user.id)),
-      logActivity(userWithTeam?.teamId, user.id, ActivityType.UPDATE_ACCOUNT)
+      db
+        .update(users)
+        .set({
+          name,
+          email,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, user.id)),
+      logActivity(
+        userWithTeam?.teamId,
+        user.id,
+        ActivityType.UPDATE_ACCOUNT
+      )
     ]);
 
-    return { name, success: 'Account updated successfully.' };
+    return {
+      name,
+      email,
+      success: 'Account updated successfully.'
+    };
   }
 );
 
