@@ -6,10 +6,17 @@ import {
 import {
   getSessionTokenFromRequest
 } from './auth/session';
+import { createApiDb } from './db';
 
 export function buildApi() {
   const api = Fastify({
     logger: true
+  });
+
+  const apiDb = createApiDb();
+
+  api.addHook('onClose', async () => {
+    await apiDb.client.end();
   });
 
   api.get('/health', async () => {
@@ -30,7 +37,10 @@ export function buildApi() {
     }
 
     const context =
-      await resolveAuthenticatedContext(sessionToken);
+      await resolveAuthenticatedContext(
+        apiDb.db,
+        sessionToken
+      );
 
     if (!context) {
       return reply.code(401).send({
