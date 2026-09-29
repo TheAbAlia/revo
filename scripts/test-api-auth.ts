@@ -5,6 +5,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { signToken } from '@/lib/auth/token';
 import { createWorkerDb } from '@/lib/db/worker';
 import {
+  brandVoices,
   jobs,
   locations,
   organizationMembers,
@@ -1414,6 +1415,222 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
       await workerDb.db
         .delete(organizations)
         .where(eq(organizations.id, organizationAId));
+    }
+
+    if (userId !== null) {
+      await workerDb.db
+        .delete(users)
+        .where(eq(users.id, userId));
+    }
+
+    await workerDb.client.end();
+  }
+});
+
+test('Brand Voice API is tenant scoped', async () => {
+  const workerDb = createWorkerDb();
+  const suffix = `${Date.now()}-${process.pid}`;
+
+  let userId: number | null = null;
+  let organizationAId: number | null = null;
+  let organizationBId: number | null = null;
+
+  try {
+    const [user] = await workerDb.db
+      .insert(users)
+      .values({
+        name: 'Brand Voice API test user',
+        email: `brand-voice-${suffix}@example.test`,
+        passwordHash: 'not-used-by-this-test'
+      })
+      .returning({
+        id: users.id
+      });
+
+    assert.ok(user);
+    userId = user.id;
+
+    const [organizationA] = await workerDb.db
+      .insert(organizations)
+      .values({
+        name: 'Brand Voice Tenant A',
+        slug: `brand-voice-a-${suffix}`
+      })
+      .returning({
+        id: organizations.id
+      });
+
+    const [organizationB] = await workerDb.db
+      .insert(organizations)
+      .values({
+        name: 'Brand Voice Tenant B',
+        slug: `brand-voice-b-${suffix}`
+      })
+      .returning({
+        id: organizations.id
+      });
+
+    assert.ok(organizationA);
+    assert.ok(organizationB);
+
+    organizationAId = organizationA.id;
+    organizationBId = organizationB.id;
+
+    await workerDb.db
+      .insert(organizationMembers)
+      .values({
+        organizationId: organizationA.id,
+        userId: user.id,
+        role: 'owner'
+      });
+
+    await workerDb.db
+      .insert(brandVoices)
+      .values([
+        {
+          organizationId: organizationA.id,
+          name: 'Tenant A Voice',
+          instructions: 'Tenant A instructions',
+          isDefault: true
+        },
+        {
+          organizationId: organizationB.id,
+          name: 'Tenant B Voice',
+          instructions: 'Tenant B instructions',
+          isDefault: true
+        }
+      ]);
+
+    const token = await signToken({
+      user: {
+        id: user.id
+      },
+      expires: new Date(
+        Date.now() + 60 * 60 * 1000
+      ).toISOString()
+    });
+
+    const api = buildApi();
+
+    try {
+      const getResponse = await api.inject({
+        method: 'GET',
+        url: '/v1/brand-voice',
+        headers: {
+          cookie: `session=${token}`
+        }
+      });
+
+      assert.equal(getResponse.statusCode, 200);
+
+      const getBody = getResponse.json();
+
+      assert.equal(
+        getBody.organization.id,
+        organizationA.id
+      );
+
+      assert.equal(
+        getBody.brandVoice.name,
+        'Tenant A Voice'
+      );
+
+      assert.equal(
+        getBody.brandVoice.instructions,
+        'Tenant A instructions'
+      );
+
+      const updateResponse = await api.inject({
+        method: 'PUT',
+        url: '/v1/brand-voice',
+        headers: {
+          cookie: `session=${token}`,
+          'content-type': 'application/json'
+        },
+        payload: {
+          name: 'Updated Tenant A Voice',
+          instructions:
+            'Updated Tenant A instructions'
+        }
+      });
+
+      assert.equal(updateResponse.statusCode, 200);
+
+      const [tenantAVoice] = await workerDb.db
+        .select({
+          name: brandVoices.name,
+          instructions: brandVoices.instructions
+        })
+        .from(brandVoices)
+        .where(
+          and(
+            eq(
+              brandVoices.organizationId,
+              organizationA.id
+            ),
+            eq(brandVoices.isDefault, true)
+          )
+        )
+        .limit(1);
+
+      assert.ok(tenantAVoice);
+
+      assert.equal(
+        tenantAVoice.name,
+        'Updated Tenant A Voice'
+      );
+
+      assert.equal(
+        tenantAVoice.instructions,
+        'Updated Tenant A instructions'
+      );
+
+      const [tenantBVoice] = await workerDb.db
+        .select({
+          name: brandVoices.name,
+          instructions: brandVoices.instructions
+        })
+        .from(brandVoices)
+        .where(
+          and(
+            eq(
+              brandVoices.organizationId,
+              organizationB.id
+            ),
+            eq(brandVoices.isDefault, true)
+          )
+        )
+        .limit(1);
+
+      assert.ok(tenantBVoice);
+
+      assert.equal(
+        tenantBVoice.name,
+        'Tenant B Voice'
+      );
+
+      assert.equal(
+        tenantBVoice.instructions,
+        'Tenant B instructions'
+      );
+    } finally {
+      await api.close();
+    }
+  } finally {
+    if (organizationBId !== null) {
+      await workerDb.db
+        .delete(organizations)
+        .where(
+          eq(organizations.id, organizationBId)
+        );
+    }
+
+    if (organizationAId !== null) {
+      await workerDb.db
+        .delete(organizations)
+        .where(
+          eq(organizations.id, organizationAId)
+        );
     }
 
     if (userId !== null) {

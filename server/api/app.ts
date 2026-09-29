@@ -801,5 +801,130 @@ export function buildApi() {
     }
   );
 
+  api.get(
+    '/v1/brand-voice',
+    async (request, reply) => {
+      const sessionToken =
+        getSessionTokenFromRequest(request);
+
+      if (!sessionToken) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const context =
+        await resolveAuthenticatedContext(
+          apiDb.db,
+          sessionToken
+        );
+
+      if (!context) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const { getDefaultBrandVoice } =
+        await import('./brand-voice/mutations');
+
+      const brandVoice =
+        await getDefaultBrandVoice(
+          apiDb.db,
+          context.organization.id
+        );
+
+      return {
+        organization: context.organization,
+        brandVoice
+      };
+    }
+  );
+
+  api.put(
+    '/v1/brand-voice',
+    async (request, reply) => {
+      const sessionToken =
+        getSessionTokenFromRequest(request);
+
+      if (!sessionToken) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const context =
+        await resolveAuthenticatedContext(
+          apiDb.db,
+          sessionToken
+        );
+
+      if (!context) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const body = request.body as {
+        name?: unknown;
+        instructions?: unknown;
+      } | null;
+
+      if (
+        !body ||
+        typeof body.name !== 'string' ||
+        !body.name.trim()
+      ) {
+        return reply.code(400).send({
+          error: 'Voice name is required.'
+        });
+      }
+
+      if (
+        typeof body.instructions !== 'string' ||
+        !body.instructions.trim()
+      ) {
+        return reply.code(400).send({
+          error:
+            'Brand voice instructions are required.'
+        });
+      }
+
+      const name = body.name.trim();
+      const instructions =
+        body.instructions.trim();
+
+      if (name.length > 100) {
+        return reply.code(400).send({
+          error:
+            'Voice name must be 100 characters or fewer.'
+        });
+      }
+
+      if (instructions.length > 4000) {
+        return reply.code(400).send({
+          error:
+            'Brand voice instructions must be 4,000 characters or fewer.'
+        });
+      }
+
+      const { saveDefaultBrandVoice } =
+        await import('./brand-voice/mutations');
+
+      const brandVoice =
+        await saveDefaultBrandVoice(
+          apiDb.db,
+          context.organization.id,
+          name,
+          instructions
+        );
+
+      return {
+        success: true,
+        brandVoice
+      };
+    }
+  );
+
   return api;
 }

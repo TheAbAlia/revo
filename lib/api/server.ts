@@ -602,3 +602,120 @@ export async function saveGoogleProviderConnection(
     success: true as const
   };
 }
+
+export async function getBrandVoice() {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/brand-voice`,
+    {
+      headers: {
+        cookie: `session=${session}`
+      },
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      error: 'Could not load brand voice'
+    };
+  }
+
+  const body = (await response.json()) as {
+    organization: {
+      id: number;
+      name: string;
+    };
+    brandVoice: {
+      name: string;
+      instructions: string;
+    } | null;
+  };
+
+  return {
+    success: true as const,
+    organization: body.organization,
+    brandVoice: body.brandVoice
+  };
+}
+
+export async function saveBrandVoice(
+  name: string,
+  instructions: string
+) {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/brand-voice`,
+    {
+      method: 'PUT',
+      headers: {
+        cookie: `session=${session}`,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        name,
+        instructions
+      }),
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  if (response.status === 400) {
+    const body = await response
+      .json()
+      .catch(() => null);
+
+    return {
+      success: false as const,
+      error:
+        body &&
+        typeof body.error === 'string'
+          ? body.error
+          : 'Could not save brand voice'
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      error: 'Could not save brand voice'
+    };
+  }
+
+  return {
+    success: true as const
+  };
+}
