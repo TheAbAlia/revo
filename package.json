@@ -16,7 +16,8 @@
     "test:publish-e2e": "tsx --test --test-concurrency=1 scripts/test-publish-e2e.ts",
     "test:provider-sync-state": "tsx --test --test-concurrency=1 scripts/test-provider-sync-state.ts",
     "scheduler": "tsx scripts/scheduler.ts",
-    "test:provider-sync-scheduler": "tsx --test --test-concurrency=1 scripts/test-provider-sync-scheduler.ts"
+    "test:provider-sync-scheduler": "tsx --test --test-concurrency=1 scripts/test-provider-sync-scheduler.ts",
+    "test:ai": "tsx --test --test-concurrency=1 scripts/test-ai-prompt-boundary.ts"
   },
   "dependencies": {
     "@tailwindcss/postcss": "4.1.7",

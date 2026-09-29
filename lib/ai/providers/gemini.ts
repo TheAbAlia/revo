@@ -1,3 +1,5 @@
+import { PermanentJobError } from '@/lib/jobs/errors';
+
 type GeminiResponse = {
   candidates?: Array<{
     content?: {
@@ -14,7 +16,13 @@ export type GeminiGenerationResult = {
   model: string;
 };
 
-const TRANSIENT_STATUS_CODES = new Set([429, 502, 503, 504]);
+const TRANSIENT_STATUS_CODES = new Set([
+  429,
+  500,
+  502,
+  503,
+  504
+]);
 const REQUEST_TIMEOUT_MS = 15_000;
 const RETRY_DELAY_MS = 750;
 
@@ -23,17 +31,24 @@ function wait(ms: number) {
 }
 
 export async function generateWithGemini(
-  prompt: string
+  input: {
+    systemInstruction: string;
+    userContent: string;
+  }
 ): Promise<GeminiGenerationResult> {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   const model = process.env.GEMINI_MODEL?.trim();
 
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not configured');
+    throw new PermanentJobError(
+      'GEMINI_API_KEY is not configured'
+    );
   }
 
   if (!model) {
-    throw new Error('GEMINI_MODEL is not configured');
+    throw new PermanentJobError(
+      'GEMINI_MODEL is not configured'
+    );
   }
 
   const url =
@@ -51,10 +66,13 @@ export async function generateWithGemini(
           'x-goog-api-key': apiKey
         },
         body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: input.systemInstruction }]
+          },
           contents: [
             {
               role: 'user',
-              parts: [{ text: prompt }]
+              parts: [{ text: input.userContent }]
             }
           ]
         }),
@@ -67,15 +85,24 @@ export async function generateWithGemini(
         continue;
       }
 
-      throw new Error('Gemini generation request failed');
+      throw new Error(
+        'Gemini generation request failed'
+      );
     }
 
     if (!response.ok) {
-      const retryable = TRANSIENT_STATUS_CODES.has(response.status);
+      const retryable =
+        TRANSIENT_STATUS_CODES.has(response.status);
 
       if (retryable && attempt === 0) {
         await wait(RETRY_DELAY_MS);
         continue;
+      }
+
+      if (!retryable) {
+        throw new PermanentJobError(
+          `Gemini generation failed (${response.status})`
+        );
       }
 
       throw new Error(
@@ -91,7 +118,9 @@ export async function generateWithGemini(
       .trim();
 
     if (!content) {
-      throw new Error('Gemini returned no generated content');
+      throw new PermanentJobError(
+        'Gemini returned no generated content'
+      );
     }
 
     return {

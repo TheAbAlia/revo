@@ -1,5 +1,6 @@
 import { buildReviewResponsePrompt } from '@/lib/ai/prompt';
 import { generateWithGemini } from '@/lib/ai/providers/gemini';
+import { validateGeneratedReviewResponse } from '@/lib/ai/validate-response';
 
 export type ReviewResponseGenerationInput = {
   rating: number;
@@ -20,5 +21,13 @@ export async function generateReviewResponse(
 ): Promise<ReviewResponseGenerationResult> {
   const prompt = buildReviewResponsePrompt(input);
 
-  return generateWithGemini(prompt);
+  const generation = await generateWithGemini({
+    systemInstruction: prompt.systemInstruction,
+    userContent: prompt.userContent
+  });
+
+  return {
+    ...generation,
+    content: validateGeneratedReviewResponse(generation.content)
+  };
 }
