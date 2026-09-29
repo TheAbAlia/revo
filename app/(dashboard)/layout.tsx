@@ -1,28 +1,24 @@
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
+
 import { AppShell } from '@/components/revo/app-shell';
-import { getOrganizationForUser } from '@/lib/db/queries';
-import { getUnansweredReviewCount } from '@/lib/reviews/queries';
+import { getDashboardShell } from '@/lib/api/server';
 
 export default async function DashboardLayout({
   children
 }: {
   children: ReactNode;
 }) {
-  const membership = await getOrganizationForUser();
+  const shell = await getDashboardShell();
 
-  if (!membership) {
+  if (!shell) {
     redirect('/sign-in');
   }
 
-  const inboxCount = await getUnansweredReviewCount(
-    membership.organization.id
-  );
-
   return (
     <AppShell
-      organizationName={membership.organization.name}
-      inboxCount={inboxCount}
+      organizationName={shell.organization.name}
+      inboxCount={shell.inboxCount}
     >
       {children}
     </AppShell>
