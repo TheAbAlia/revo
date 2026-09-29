@@ -11,6 +11,9 @@ export type ReviewResponsePrompt = {
   userContent: string;
 };
 
+export const REVIEW_RESPONSE_PROMPT_VERSION =
+  'review-response-v1';
+
 export const REVIEW_RESPONSE_SYSTEM_INSTRUCTION = `You write public responses to customer reviews on behalf of a local business.
 
 Your task is to write one concise, natural response to the supplied customer review.

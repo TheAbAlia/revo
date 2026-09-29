@@ -385,6 +385,9 @@ export const aiResponseGenerations = pgTable(
 
     provider: varchar('provider', { length: 50 }).notNull(),
     model: varchar('model', { length: 100 }).notNull(),
+    promptVersion: varchar('prompt_version', { length: 100 })
+      .notNull()
+      .default('review-response-v1'),
 
     createdAt: timestamp('created_at').notNull().defaultNow(),
   }

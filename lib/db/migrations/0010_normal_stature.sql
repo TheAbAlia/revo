@@ -1,0 +1,1 @@
+ALTER TABLE "ai_response_generations" ADD COLUMN "prompt_version" varchar(100) DEFAULT 'review-response-v1' NOT NULL;

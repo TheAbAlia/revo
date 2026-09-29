@@ -71,6 +71,13 @@
       "when": 1790678930729,
       "tag": "0009_milky_lilandra",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790681997641,
+      "tag": "0010_normal_stature",
+      "breakpoints": true
     }
   ]
 }

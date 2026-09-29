@@ -123,7 +123,8 @@ export async function generateDraftForReview(
       reviewId,
       content: generation.content,
       provider: generation.provider,
-      model: generation.model
+      model: generation.model,
+      promptVersion: generation.promptVersion
     });
 
     if (

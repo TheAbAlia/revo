@@ -222,7 +222,8 @@ test(
 
       const generations = await workerDb.db
         .select({
-          content: aiResponseGenerations.content
+          content: aiResponseGenerations.content,
+          promptVersion: aiResponseGenerations.promptVersion
         })
         .from(aiResponseGenerations)
         .where(
@@ -242,6 +243,10 @@ test(
       assert.equal(
         generations[0]?.content,
         updatedResponse.content
+      );
+      assert.equal(
+        generations[0]?.promptVersion,
+        'review-response-v1'
       );
     } finally {
       globalThis.fetch = originalFetch;
