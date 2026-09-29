@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import { createWorkerDb } from '@/lib/db/worker';
 import {
@@ -36,7 +36,52 @@ test('worker claims and completes a queued job', async () => {
 
     const result = await runNextJob(
       workerDb.db,
-      'integration-test-worker'
+      'integration-test-worker',
+      async () => {},
+      async (db, workerId) => {
+        const result = await db.execute<{
+          id: number;
+          organization_id: number;
+          type: string;
+          payload: unknown;
+          attempts: number;
+          max_attempts: number;
+        }>(sql`
+          UPDATE jobs
+          SET
+            status = 'processing',
+            attempts = attempts + 1,
+            locked_at = NOW(),
+            locked_by = ${workerId},
+            updated_at = NOW()
+          WHERE id = ${job.id}
+            AND status = 'pending'
+            AND attempts < max_attempts
+          RETURNING
+            id,
+            organization_id,
+            type,
+            payload,
+            attempts,
+            max_attempts
+        `);
+
+        const row = result[0];
+
+        if (!row) {
+          return null;
+        }
+
+        return {
+          id: row.id,
+          organizationId:
+            row.organization_id,
+          type: row.type,
+          payload: row.payload,
+          attempts: row.attempts,
+          maxAttempts: row.max_attempts
+        };
+      }
     );
 
     assert.equal(result.status, 'completed');

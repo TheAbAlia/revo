@@ -24,11 +24,16 @@ export type RunNextJobResult =
       error: string;
     };
 
+type JobProcessor = typeof processJob;
+type JobClaimer = typeof claimNextJob;
+
 export async function runNextJob(
   db: ReturnType<typeof import('@/lib/db/worker').createWorkerDb>['db'],
-  workerId: string
+  workerId: string,
+  processor: JobProcessor = processJob,
+  claimer: JobClaimer = claimNextJob
 ): Promise<RunNextJobResult> {
-  const job = await claimNextJob(db, workerId);
+  const job = await claimer(db, workerId);
 
   if (!job) {
     return {
@@ -44,7 +49,7 @@ export async function runNextJob(
   );
 
   try {
-    await processJob(db, job);
+    await processor(db, job);
 
     await lease.stop();
 

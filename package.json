@@ -10,7 +10,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "worker": "tsx scripts/worker.ts",
-    "test:worker": "tsx --test --test-concurrency=1 scripts/test-worker.ts",
+    "test:worker": "tsx --env-file=.env.local --test --test-concurrency=1 scripts/test-worker.ts",
     "test:google": "tsx --test scripts/test-google-reviews.ts",
     "test:provider-sync": "tsx --test scripts/test-provider-sync-context.ts",
     "test:publish-e2e": "tsx --test --test-concurrency=1 scripts/test-publish-e2e.ts",
