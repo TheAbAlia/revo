@@ -131,7 +131,8 @@ export async function ingestReview(
         type: 'generate-ai-draft',
         dedupeKey: `generate-ai-draft:${input.organizationId}:${review.id}`,
         payload: {
-          reviewId: review.id
+          reviewId: review.id,
+          automatic: true
         }
       });
 

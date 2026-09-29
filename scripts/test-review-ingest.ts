@@ -85,7 +85,8 @@ test(
       assert.equal(firstJobs.length, 1);
       assert.equal(firstJobs[0]?.type, 'generate-ai-draft');
       assert.deepEqual(firstJobs[0]?.payload, {
-        reviewId: first.reviewId
+        reviewId: first.reviewId,
+        automatic: true
       });
       assert.equal(
         firstJobs[0]?.dedupeKey,

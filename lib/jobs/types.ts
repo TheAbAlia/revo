@@ -3,6 +3,7 @@ export type GenerateAIDraftJob = {
   payload: {
     reviewId: number;
     force?: boolean;
+    automatic?: boolean;
   };
 };
 
