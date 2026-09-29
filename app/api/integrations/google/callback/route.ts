@@ -5,22 +5,16 @@ import {
   NextResponse
 } from 'next/server';
 
-import { and, eq } from 'drizzle-orm';
-
-import { db } from '@/lib/db/drizzle';
 import {
-  providerConnections
-} from '@/lib/db/schema';
-import { getOrganizationForUser } from '@/lib/db/queries';
+  getGoogleProviderConnection,
+  saveGoogleProviderConnection
+} from '@/lib/api/server';
 import {
   fetchGoogleBusinessAccounts
 } from '@/lib/integrations/google/accounts';
 import {
   exchangeGoogleAuthorizationCode
 } from '@/lib/integrations/google/oauth';
-import {
-  upsertProviderConnection
-} from '@/lib/integrations/providers/connections';
 
 const OAUTH_STATE_COOKIE = 'revo_google_oauth_state';
 const OAUTH_CONNECTION_COOKIE =
@@ -54,15 +48,14 @@ function locationsRedirect(
 }
 
 export async function GET(request: NextRequest) {
-  const membership = await getOrganizationForUser();
+  const cookieStore = await cookies();
 
-  if (!membership) {
+  if (!cookieStore.get('session')?.value) {
     return NextResponse.redirect(
       new URL('/sign-in', request.url)
     );
   }
 
-  const cookieStore = await cookies();
   const expectedState =
     cookieStore.get(OAUTH_STATE_COOKIE)?.value;
   const reconnectConnectionId = Number(
@@ -140,31 +133,12 @@ export async function GET(request: NextRequest) {
       Number.isInteger(reconnectConnectionId) &&
       reconnectConnectionId > 0
     ) {
-      const [existingConnection] = await db
-        .select({
-          externalAccountId:
-            providerConnections.externalAccountId
-        })
-        .from(providerConnections)
-        .where(
-          and(
-            eq(
-              providerConnections.id,
-              reconnectConnectionId
-            ),
-            eq(
-              providerConnections.organizationId,
-              membership.organization.id
-            ),
-            eq(
-              providerConnections.provider,
-              'google'
-            )
-          )
-        )
-        .limit(1);
+      const existing =
+        await getGoogleProviderConnection(
+          reconnectConnectionId
+        );
 
-      if (!existingConnection) {
+      if (!existing.success) {
         return locationsRedirect(
           request,
           'connection-failed'
@@ -172,7 +146,7 @@ export async function GET(request: NextRequest) {
       }
 
       if (
-        existingConnection.externalAccountId !==
+        existing.connection.externalAccountId !==
         account.externalAccountId
       ) {
         return locationsRedirect(
@@ -182,12 +156,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    await upsertProviderConnection({
-      organizationId: membership.organization.id,
-      provider: 'google',
-      externalAccountId: account.externalAccountId,
-      refreshToken: tokens.refreshToken
-    });
+    const saved =
+      await saveGoogleProviderConnection(
+        account.externalAccountId,
+        tokens.refreshToken
+      );
+
+    if (!saved.success) {
+      return locationsRedirect(
+        request,
+        'connection-failed'
+      );
+    }
 
     return locationsRedirect(
       request,

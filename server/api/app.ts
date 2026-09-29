@@ -674,5 +674,132 @@ export function buildApi() {
     };
   });
 
+  api.get(
+    '/v1/provider-connections/google/:connectionId',
+    async (request, reply) => {
+      const sessionToken =
+        getSessionTokenFromRequest(request);
+
+      if (!sessionToken) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const context =
+        await resolveAuthenticatedContext(
+          apiDb.db,
+          sessionToken
+        );
+
+      if (!context) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const { connectionId } =
+        request.params as {
+          connectionId: string;
+        };
+
+      const numericConnectionId =
+        Number(connectionId);
+
+      if (
+        !Number.isInteger(numericConnectionId) ||
+        numericConnectionId <= 0
+      ) {
+        return reply.code(400).send({
+          error: 'Invalid provider connection'
+        });
+      }
+
+      const { getGoogleProviderConnection } =
+        await import(
+          './provider-connections/mutations'
+        );
+
+      const connection =
+        await getGoogleProviderConnection(
+          apiDb.db,
+          context.organization.id,
+          numericConnectionId
+        );
+
+      if (!connection) {
+        return reply.code(404).send({
+          error: 'Provider connection not found'
+        });
+      }
+
+      return {
+        connection
+      };
+    }
+  );
+
+  api.post(
+    '/v1/provider-connections/google',
+    async (request, reply) => {
+      const sessionToken =
+        getSessionTokenFromRequest(request);
+
+      if (!sessionToken) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const context =
+        await resolveAuthenticatedContext(
+          apiDb.db,
+          sessionToken
+        );
+
+      if (!context) {
+        return reply.code(401).send({
+          error: 'Unauthorized'
+        });
+      }
+
+      const body = request.body as {
+        externalAccountId?: unknown;
+        refreshToken?: unknown;
+      } | null;
+
+      if (
+        !body ||
+        typeof body.externalAccountId !== 'string' ||
+        !body.externalAccountId.trim() ||
+        typeof body.refreshToken !== 'string' ||
+        !body.refreshToken.trim()
+      ) {
+        return reply.code(400).send({
+          error: 'Invalid provider connection'
+        });
+      }
+
+      const {
+        upsertGoogleProviderConnection
+      } = await import(
+        './provider-connections/mutations'
+      );
+
+      const connection =
+        await upsertGoogleProviderConnection(
+          apiDb.db,
+          context.organization.id,
+          body.externalAccountId,
+          body.refreshToken
+        );
+
+      return {
+        success: true,
+        connection
+      };
+    }
+  );
+
   return api;
 }

@@ -857,6 +857,39 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
         role: 'owner'
       });
 
+    const [providerConnectionA] =
+      await workerDb.db
+        .insert(providerConnections)
+        .values({
+          organizationId: organizationA.id,
+          provider: 'google',
+          externalAccountId:
+            `publish-account-${suffix}`,
+          refreshTokenEncrypted:
+            'test-encrypted-refresh-token'
+        })
+        .returning({
+          id: providerConnections.id
+        });
+
+    const [providerConnectionB] =
+      await workerDb.db
+        .insert(providerConnections)
+        .values({
+          organizationId: organizationB.id,
+          provider: 'google',
+          externalAccountId:
+            `foreign-account-${suffix}`,
+          refreshTokenEncrypted:
+            'test-encrypted-foreign-refresh-token'
+        })
+        .returning({
+          id: providerConnections.id
+        });
+
+    assert.ok(providerConnectionA);
+    assert.ok(providerConnectionB);
+
     const [locationA] = await workerDb.db
       .insert(locations)
       .values({
@@ -1152,6 +1185,128 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
 
       assert.equal(
         crossTenantSyncJob,
+        undefined
+      );
+
+      const ownConnectionResponse =
+        await api.inject({
+          method: 'GET',
+          url:
+            `/v1/provider-connections/google/${providerConnectionA.id}`,
+          headers: {
+            cookie: `session=${token}`
+          }
+        });
+
+      assert.equal(
+        ownConnectionResponse.statusCode,
+        200
+      );
+
+      assert.equal(
+        ownConnectionResponse.json()
+          .connection.externalAccountId,
+        `publish-account-${suffix}`
+      );
+
+      const foreignConnectionResponse =
+        await api.inject({
+          method: 'GET',
+          url:
+            `/v1/provider-connections/google/${providerConnectionB.id}`,
+          headers: {
+            cookie: `session=${token}`
+          }
+        });
+
+      assert.equal(
+        foreignConnectionResponse.statusCode,
+        404
+      );
+
+      const oauthAccountId =
+        `oauth-account-${suffix}`;
+
+      const upsertConnectionResponse =
+        await api.inject({
+          method: 'POST',
+          url:
+            '/v1/provider-connections/google',
+          headers: {
+            cookie: `session=${token}`,
+            'content-type': 'application/json'
+          },
+          payload: {
+            externalAccountId: oauthAccountId,
+            refreshToken:
+              'test-oauth-refresh-token'
+          }
+        });
+
+      assert.equal(
+        upsertConnectionResponse.statusCode,
+        200
+      );
+
+      const [persistedOAuthConnection] =
+        await workerDb.db
+          .select({
+            organizationId:
+              providerConnections.organizationId,
+            externalAccountId:
+              providerConnections.externalAccountId,
+            refreshTokenEncrypted:
+              providerConnections.refreshTokenEncrypted
+          })
+          .from(providerConnections)
+          .where(
+            and(
+              eq(
+                providerConnections.organizationId,
+                organizationA.id
+              ),
+              eq(
+                providerConnections.externalAccountId,
+                oauthAccountId
+              )
+            )
+          )
+          .limit(1);
+
+      assert.ok(persistedOAuthConnection);
+
+      assert.equal(
+        persistedOAuthConnection.organizationId,
+        organizationA.id
+      );
+
+      assert.notEqual(
+        persistedOAuthConnection.refreshTokenEncrypted,
+        'test-oauth-refresh-token'
+      );
+
+      const [crossTenantOAuthConnection] =
+        await workerDb.db
+          .select({
+            id: providerConnections.id
+          })
+          .from(providerConnections)
+          .where(
+            and(
+              eq(
+                providerConnections.organizationId,
+                organizationB.id
+              ),
+              eq(
+                providerConnections.externalAccountId,
+                oauthAccountId
+              )
+            )
+          )
+          .limit(1);
+
+      assert.equal(
+        crossTenantOAuthConnection,
         undefined
       );
 

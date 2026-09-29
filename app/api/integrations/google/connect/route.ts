@@ -5,13 +5,9 @@ import {
   NextResponse
 } from 'next/server';
 
-import { and, eq } from 'drizzle-orm';
-
-import { db } from '@/lib/db/drizzle';
 import {
-  providerConnections
-} from '@/lib/db/schema';
-import { getOrganizationForUser } from '@/lib/db/queries';
+  getGoogleProviderConnection
+} from '@/lib/api/server';
 import {
   createGoogleAuthorizationUrl
 } from '@/lib/integrations/google/oauth';
@@ -22,14 +18,6 @@ const OAUTH_CONNECTION_COOKIE =
 const OAUTH_STATE_MAX_AGE_SECONDS = 10 * 60;
 
 export async function GET(request: NextRequest) {
-  const membership = await getOrganizationForUser();
-
-  if (!membership) {
-    return NextResponse.redirect(
-      new URL('/sign-in', request.url)
-    );
-  }
-
   const reconnect =
     request.nextUrl.searchParams.get('mode') ===
     'reconnect';
@@ -51,37 +39,37 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const [connection] = await db
-      .select({
-        id: providerConnections.id
-      })
-      .from(providerConnections)
-      .where(
-        and(
-          eq(
-            providerConnections.id,
-            requestedConnectionId
-          ),
-          eq(
-            providerConnections.organizationId,
-            membership.organization.id
-          ),
-          eq(
-            providerConnections.provider,
-            'google'
-          )
-        )
-      )
-      .limit(1);
+    const result =
+      await getGoogleProviderConnection(
+        requestedConnectionId
+      );
 
-    if (!connection) {
+    if (
+      !result.success &&
+      result.error === 'Unauthorized'
+    ) {
+      return NextResponse.redirect(
+        new URL('/sign-in', request.url)
+      );
+    }
+
+    if (!result.success) {
       return NextResponse.json(
         { error: 'Provider connection not found' },
         { status: 404 }
       );
     }
 
-    reconnectConnectionId = connection.id;
+    reconnectConnectionId =
+      result.connection.id;
+  } else {
+    const cookieStore = await cookies();
+
+    if (!cookieStore.get('session')?.value) {
+      return NextResponse.redirect(
+        new URL('/sign-in', request.url)
+      );
+    }
   }
 
   const state =

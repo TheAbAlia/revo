@@ -496,3 +496,109 @@ export async function syncLocationReviews(
     success: true as const
   };
 }
+
+export async function getGoogleProviderConnection(
+  connectionId: number
+) {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/provider-connections/google/${encodeURIComponent(String(connectionId))}`,
+    {
+      headers: {
+        cookie: `session=${session}`
+      },
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  if (response.status === 404) {
+    return {
+      success: false as const,
+      error: 'Not found'
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      error: 'Could not load provider connection'
+    };
+  }
+
+  const body = (await response.json()) as {
+    connection: {
+      id: number;
+      externalAccountId: string;
+    };
+  };
+
+  return {
+    success: true as const,
+    connection: body.connection
+  };
+}
+
+export async function saveGoogleProviderConnection(
+  externalAccountId: string,
+  refreshToken: string
+) {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/provider-connections/google`,
+    {
+      method: 'POST',
+      headers: {
+        cookie: `session=${session}`,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        externalAccountId,
+        refreshToken
+      }),
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return {
+      success: false as const,
+      error: 'Unauthorized'
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      error: 'Could not save provider connection'
+    };
+  }
+
+  return {
+    success: true as const
+  };
+}
