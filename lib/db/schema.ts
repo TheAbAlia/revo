@@ -259,6 +259,10 @@ export const locations = pgTable('locations', {
       onDelete: 'set null'
     }),
 
+  lastSyncAttemptAt: timestamp('last_sync_attempt_at'),
+  lastSyncedAt: timestamp('last_synced_at'),
+  lastSyncError: text('last_sync_error'),
+
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });

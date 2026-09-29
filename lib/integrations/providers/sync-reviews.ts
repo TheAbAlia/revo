@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 
 import type { createWorkerDb } from '@/lib/db/worker';
-import { providerConnections } from '@/lib/db/schema';
+import { locations, providerConnections } from '@/lib/db/schema';
 import { decryptCredential } from '@/lib/integrations/crypto';
 import { fetchGoogleReviews } from '@/lib/integrations/google/fetch-reviews';
 import { refreshGoogleProviderAccessToken } from '@/lib/integrations/providers/refresh-access-token';
@@ -39,44 +39,103 @@ export async function syncProviderReviews(
   organizationId: number,
   locationId: number
 ) {
-  const context = await getProviderSyncContext(
-    db,
-    organizationId,
-    locationId
-  );
+  const startedAt = new Date();
 
-  switch (context.provider) {
-    case 'google': {
-      const refreshToken = await getProviderRefreshToken(
-        db,
-        organizationId,
-        context.providerConnectionId
-      );
+  await db
+    .update(locations)
+    .set({
+      lastSyncAttemptAt: startedAt,
+      updatedAt: startedAt
+    })
+    .where(
+      and(
+        eq(locations.id, locationId),
+        eq(locations.organizationId, organizationId)
+      )
+    );
 
-      const { accessToken } =
-        await refreshGoogleProviderAccessToken(
+  try {
+    const context = await getProviderSyncContext(
+      db,
+      organizationId,
+      locationId
+    );
+
+    let result;
+
+    switch (context.provider) {
+      case 'google': {
+        const refreshToken = await getProviderRefreshToken(
           db,
           organizationId,
-          context.providerConnectionId,
-          refreshToken
+          context.providerConnectionId
         );
 
-      const reviews = await fetchGoogleReviews({
-        accessToken,
-        accountId: context.externalAccountId,
-        locationId: context.locationExternalId,
-      });
+        const { accessToken } =
+          await refreshGoogleProviderAccessToken(
+            db,
+            organizationId,
+            context.providerConnectionId,
+            refreshToken
+          );
 
-      return syncGoogleLocationReviews(db, {
-        organizationId,
-        locationId,
-        reviews,
-      });
+        const reviews = await fetchGoogleReviews({
+          accessToken,
+          accountId: context.externalAccountId,
+          locationId: context.locationExternalId
+        });
+
+        result = await syncGoogleLocationReviews(db, {
+          organizationId,
+          locationId,
+          reviews
+        });
+
+        break;
+      }
+
+      default:
+        throw new Error(
+          `Unsupported review provider: ${context.provider}`
+        );
     }
 
-    default:
-      throw new Error(
-        `Unsupported review provider: ${context.provider}`
+    const completedAt = new Date();
+
+    await db
+      .update(locations)
+      .set({
+        lastSyncedAt: completedAt,
+        lastSyncError: null,
+        updatedAt: completedAt
+      })
+      .where(
+        and(
+          eq(locations.id, locationId),
+          eq(locations.organizationId, organizationId)
+        )
       );
+
+    return result;
+  } catch (error) {
+    const failedAt = new Date();
+
+    await db
+      .update(locations)
+      .set({
+        lastSyncError:
+          error instanceof Error
+            ? error.message
+            : 'Unknown synchronization error',
+        updatedAt: failedAt
+      })
+      .where(
+        and(
+          eq(locations.id, locationId),
+          eq(locations.organizationId, organizationId)
+        )
+      );
+
+    throw error;
   }
 }

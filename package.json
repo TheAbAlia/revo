@@ -13,7 +13,8 @@
     "test:worker": "tsx --test --test-concurrency=1 scripts/test-worker.ts",
     "test:google": "tsx --test scripts/test-google-reviews.ts",
     "test:provider-sync": "tsx --test scripts/test-provider-sync-context.ts",
-    "test:publish-e2e": "tsx --test --test-concurrency=1 scripts/test-publish-e2e.ts"
+    "test:publish-e2e": "tsx --test --test-concurrency=1 scripts/test-publish-e2e.ts",
+    "test:provider-sync-state": "tsx --test --test-concurrency=1 scripts/test-provider-sync-state.ts"
   },
   "dependencies": {
     "@tailwindcss/postcss": "4.1.7",
