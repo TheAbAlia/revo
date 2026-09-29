@@ -1,9 +1,6 @@
-import { desc, and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from './drizzle';
 import {
-  activityLogs,
-  organizationMembers,
-  organizations,
   teamMembers,
   teams,
   users
@@ -44,32 +41,6 @@ export async function getUser() {
 }
 
 
-export async function getOrganizationForUser() {
-  const user = await getUser();
-
-  if (!user) {
-    return null;
-  }
-
-  const membership = await db
-    .select({
-      organization: organizations,
-      role: organizationMembers.role
-    })
-    .from(organizationMembers)
-    .innerJoin(
-      organizations,
-      eq(
-        organizationMembers.organizationId,
-        organizations.id
-      )
-    )
-    .where(eq(organizationMembers.userId, user.id))
-    .limit(1);
-
-  return membership[0] ?? null;
-}
-
 export async function getTeamByStripeCustomerId(customerId: string) {
   const result = await db
     .select()
@@ -96,41 +67,6 @@ export async function updateTeamSubscription(
       updatedAt: new Date()
     })
     .where(eq(teams.id, teamId));
-}
-
-export async function getUserWithTeam(userId: number) {
-  const result = await db
-    .select({
-      user: users,
-      teamId: teamMembers.teamId
-    })
-    .from(users)
-    .leftJoin(teamMembers, eq(users.id, teamMembers.userId))
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  return result[0];
-}
-
-export async function getActivityLogs() {
-  const user = await getUser();
-  if (!user) {
-    throw new Error('User not authenticated');
-  }
-
-  return await db
-    .select({
-      id: activityLogs.id,
-      action: activityLogs.action,
-      timestamp: activityLogs.timestamp,
-      ipAddress: activityLogs.ipAddress,
-      userName: users.name
-    })
-    .from(activityLogs)
-    .leftJoin(users, eq(activityLogs.userId, users.id))
-    .where(eq(activityLogs.userId, user.id))
-    .orderBy(desc(activityLogs.timestamp))
-    .limit(10);
 }
 
 export async function getTeamForUser() {
