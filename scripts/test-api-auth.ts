@@ -257,6 +257,36 @@ test('GET /v1/me resolves user and organization from the session', async () => {
   }
 });
 
+test('GET /v1/me rejects a stale authenticated session', async () => {
+  const api = buildApi();
+
+  const token = await signToken({
+    user: {
+      id: 2147483647
+    },
+    expires: new Date(
+      Date.now() + 60 * 60 * 1000
+    ).toISOString()
+  });
+
+  try {
+    const response = await api.inject({
+      method: 'GET',
+      url: '/v1/me',
+      headers: {
+        cookie: `session=${token}`
+      }
+    });
+
+    assert.equal(response.statusCode, 401);
+    assert.deepEqual(response.json(), {
+      error: 'Unauthorized'
+    });
+  } finally {
+    await api.close();
+  }
+});
+
 test('GET /v1/dashboard/shell rejects requests without a session', async () => {
   const api = buildApi();
 

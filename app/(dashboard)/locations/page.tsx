@@ -258,7 +258,14 @@ export default async function LocationsPage({
                           >
                             Reconnect Google
                           </a>
-                        ) : null}
+                        ) : (
+                          <a
+                            href="/api/integrations/google/connect"
+                            className="flex h-8 items-center rounded-md border bg-background px-2.5 text-[11px] font-medium transition-colors hover:bg-muted"
+                          >
+                            Connect Google
+                          </a>
+                        )}
 
                         <div className="grid grid-cols-3 gap-6 text-right">
                           <div>

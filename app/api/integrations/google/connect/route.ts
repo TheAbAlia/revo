@@ -6,6 +6,7 @@ import {
 } from 'next/server';
 
 import {
+  getAuthenticatedContext,
   getGoogleProviderConnection
 } from '@/lib/api/server';
 import {
@@ -18,6 +19,15 @@ const OAUTH_CONNECTION_COOKIE =
 const OAUTH_STATE_MAX_AGE_SECONDS = 10 * 60;
 
 export async function GET(request: NextRequest) {
+  const authenticated =
+    await getAuthenticatedContext();
+
+  if (!authenticated) {
+    return NextResponse.redirect(
+      new URL('/sign-in', request.url)
+    );
+  }
+
   const reconnect =
     request.nextUrl.searchParams.get('mode') ===
     'reconnect';
@@ -62,14 +72,6 @@ export async function GET(request: NextRequest) {
 
     reconnectConnectionId =
       result.connection.id;
-  } else {
-    const cookieStore = await cookies();
-
-    if (!cookieStore.get('session')?.value) {
-      return NextResponse.redirect(
-        new URL('/sign-in', request.url)
-      );
-    }
   }
 
   const state =

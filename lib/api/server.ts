@@ -97,6 +97,48 @@ export async function registerAccount(
   };
 }
 
+export async function getAuthenticatedContext() {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return null;
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/me`,
+    {
+      headers: {
+        cookie: `session=${session}`
+      },
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `Revo API request failed with status ${response.status}`
+    );
+  }
+
+  return response.json() as Promise<{
+    user: {
+      id: number;
+      name: string | null;
+      email: string;
+    };
+    organization: {
+      id: number;
+      name: string;
+    };
+    role: string;
+  }>;
+}
+
 type DashboardShell = {
   organization: {
     id: number;

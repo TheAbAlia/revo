@@ -6,6 +6,7 @@ import {
 } from 'next/server';
 
 import {
+  getAuthenticatedContext,
   getGoogleProviderConnection,
   saveGoogleProviderConnection
 } from '@/lib/api/server';
@@ -48,13 +49,16 @@ function locationsRedirect(
 }
 
 export async function GET(request: NextRequest) {
-  const cookieStore = await cookies();
+  const authenticated =
+    await getAuthenticatedContext();
 
-  if (!cookieStore.get('session')?.value) {
+  if (!authenticated) {
     return NextResponse.redirect(
       new URL('/sign-in', request.url)
     );
   }
+
+  const cookieStore = await cookies();
 
   const expectedState =
     cookieStore.get(OAUTH_STATE_COOKIE)?.value;
