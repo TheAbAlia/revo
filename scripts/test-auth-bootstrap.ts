@@ -120,32 +120,23 @@ test(
         `)
       );
 
-      await apiDb.db.transaction(async (tx) => {
-        await tx.execute(sql`
-          SELECT set_config(
-            'revo.organization_id',
-            ${String(organizationA.id)},
-            true
-          )
-        `);
+      await assert.rejects(
+        apiDb.db.transaction(async (tx) => {
+          await tx.execute(sql`
+            SELECT set_config(
+              'revo.organization_id',
+              ${String(organizationA.id)},
+              true
+            )
+          `);
 
-        const visibleMemberships =
-          await tx.execute<{
-            organization_id: number;
-          }>(sql`
+          await tx.execute(sql`
             SELECT organization_id
             FROM public.organization_members
             WHERE user_id = ${user.id}
-            ORDER BY organization_id
           `);
-
-        assert.deepEqual(
-          visibleMemberships.map(
-            (row) => row.organization_id
-          ),
-          [organizationA.id]
-        );
-      });
+        })
+      );
 
       await assert.rejects(
         apiDb.db.transaction(async (tx) => {

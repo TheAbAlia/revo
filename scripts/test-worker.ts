@@ -17,6 +17,7 @@ import { runNextJob } from '@/lib/jobs/run-next';
 
 test('worker claims and completes a queued job', async () => {
   const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   let testJobId: number | null = null;
 
   try {
@@ -108,17 +109,19 @@ test('worker claims and completes a queued job', async () => {
     assert.equal(storedJob.lockedBy, null);
   } finally {
     if (testJobId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(jobs)
         .where(eq(jobs.id, testJobId));
     }
 
     await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
 test('worker permanently fails an invalid job payload', async () => {
   const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   let testJobId: number | null = null;
 
   try {
@@ -177,17 +180,19 @@ test('worker permanently fails an invalid job payload', async () => {
     assert.ok(storedJob.availableAt > beforeRun);
   } finally {
     if (testJobId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(jobs)
         .where(eq(jobs.id, testJobId));
     }
 
     await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
 test('worker permanently fails an exhausted job', async () => {
   const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   let testJobId: number | null = null;
 
   try {
@@ -248,17 +253,19 @@ test('worker permanently fails an exhausted job', async () => {
     );
   } finally {
     if (testJobId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(jobs)
         .where(eq(jobs.id, testJobId));
     }
 
     await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
 test('worker reclaims a stale processing job', async () => {
   const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   let testJobId: number | null = null;
 
   try {
@@ -314,17 +321,19 @@ test('worker reclaims a stale processing job', async () => {
     assert.equal(storedJob.lockedBy, null);
   } finally {
     if (testJobId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(jobs)
         .where(eq(jobs.id, testJobId));
     }
 
     await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
 test('worker fails a stale job that exhausted its attempts', async () => {
   const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   let testJobId: number | null = null;
 
   try {
@@ -390,17 +399,19 @@ test('worker fails a stale job that exhausted its attempts', async () => {
     );
   } finally {
     if (testJobId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(jobs)
         .where(eq(jobs.id, testJobId));
     }
 
     await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
 test('worker permanently fails an invalid publish-response job', async () => {
   const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   let testJobId: number | null = null;
 
   try {
@@ -455,17 +466,19 @@ test('worker permanently fails an invalid publish-response job', async () => {
     );
   } finally {
     if (testJobId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(jobs)
         .where(eq(jobs.id, testJobId));
     }
 
     await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
 test('ordinary job errors remain retryable with backoff', async () => {
   const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   let testJobId: number | null = null;
 
   try {
@@ -527,17 +540,19 @@ test('ordinary job errors remain retryable with backoff', async () => {
     assert.ok(storedJob.availableAt > beforeFailure);
   } finally {
     if (testJobId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(jobs)
         .where(eq(jobs.id, testJobId));
     }
 
     await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
 test('worker permanently rejects invalid generation force value', async () => {
   const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   let testJobId: number | null = null;
 
   try {
@@ -589,12 +604,13 @@ test('worker permanently rejects invalid generation force value', async () => {
     );
   } finally {
     if (testJobId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(jobs)
         .where(eq(jobs.id, testJobId));
     }
 
     await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
@@ -659,7 +675,7 @@ test('automatic generation job is skipped when automation is disabled', async ()
     assert.equal(storedJob?.lastError, null);
   } finally {
     if (testJobId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(jobs)
         .where(eq(jobs.id, testJobId));
     }
@@ -685,6 +701,7 @@ test('automatic generation job is skipped when automation is disabled', async ()
 
 test('worker permanently rejects invalid automatic generation value', async () => {
   const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   let testJobId: number | null = null;
 
   try {
@@ -736,12 +753,13 @@ test('worker permanently rejects invalid automatic generation value', async () =
     );
   } finally {
     if (testJobId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(jobs)
         .where(eq(jobs.id, testJobId));
     }
 
     await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
@@ -921,7 +939,7 @@ test(
       assert.equal(storedJob.lockedBy, null);
     } finally {
       if (testJobId !== null) {
-        await workerDb.db
+        await testDb.db
           .delete(jobs)
           .where(eq(jobs.id, testJobId));
       }
