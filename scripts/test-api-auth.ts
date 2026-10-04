@@ -197,6 +197,297 @@ test('POST /v1/auth/sign-up creates an owner workspace', async () => {
   }
 });
 
+test('auth normalizes email addresses consistently', async () => {
+  const api = buildApi();
+  const workerDb = createWorkerDb();
+  const suffix = `${Date.now()}-${process.pid}`;
+  const normalizedEmail =
+    `normalized-${suffix}@example.test`;
+  const submittedEmail =
+    `  NORMALIZED-${suffix}@EXAMPLE.TEST  `;
+  const password = 'normalization-password-123';
+
+  let userId: number | null = null;
+  let organizationId: number | null = null;
+
+  try {
+    const signUpResponse = await api.inject({
+      method: 'POST',
+      url: '/v1/auth/sign-up',
+      payload: {
+        email: submittedEmail,
+        password
+      }
+    });
+
+    assert.equal(signUpResponse.statusCode, 201);
+
+    const body = signUpResponse.json();
+    userId = body.user.id;
+
+    const [createdUser] = await workerDb.db
+      .select({
+        email: users.email
+      })
+      .from(users)
+      .where(eq(users.id, body.user.id))
+      .limit(1);
+
+    assert.ok(createdUser);
+    assert.equal(createdUser.email, normalizedEmail);
+
+    const [membership] = await workerDb.db
+      .select({
+        organizationId: organizationMembers.organizationId
+      })
+      .from(organizationMembers)
+      .where(eq(organizationMembers.userId, body.user.id))
+      .limit(1);
+
+    assert.ok(membership);
+    organizationId = membership.organizationId;
+
+    const signInResponse = await api.inject({
+      method: 'POST',
+      url: '/v1/auth/sign-in',
+      payload: {
+        email: `  ${normalizedEmail.toUpperCase()}  `,
+        password
+      }
+    });
+
+    assert.equal(signInResponse.statusCode, 200);
+
+    const duplicateResponse = await api.inject({
+      method: 'POST',
+      url: '/v1/auth/sign-up',
+      payload: {
+        email: normalizedEmail.toUpperCase(),
+        password
+      }
+    });
+
+    assert.equal(duplicateResponse.statusCode, 409);
+  } finally {
+    if (userId !== null) {
+      await workerDb.db
+        .delete(organizationMembers)
+        .where(eq(organizationMembers.userId, userId));
+    }
+
+    if (organizationId !== null) {
+      await workerDb.db
+        .delete(organizations)
+        .where(eq(organizations.id, organizationId));
+    }
+
+    if (userId !== null) {
+      await workerDb.db
+        .delete(users)
+        .where(eq(users.id, userId));
+    }
+
+    await api.close();
+    await workerDb.client.end();
+  }
+});
+
+test('auth rejects malformed email addresses', async () => {
+  const invalidEmails = [
+    'not-an-email',
+    'missing-domain@',
+    '@missing-local.test',
+    'spaces in@example.test'
+  ];
+
+  for (const email of invalidEmails) {
+    const api = buildApi();
+
+    try {
+      const signUpResponse = await api.inject({
+        method: 'POST',
+        url: '/v1/auth/sign-up',
+        payload: {
+          email,
+          password: 'password-123'
+        }
+      });
+
+      assert.equal(signUpResponse.statusCode, 400);
+
+      const signInResponse = await api.inject({
+        method: 'POST',
+        url: '/v1/auth/sign-in',
+        payload: {
+          email,
+          password: 'password-123'
+        }
+      });
+
+      assert.equal(signInResponse.statusCode, 400);
+    } finally {
+      await api.close();
+    }
+  }
+});
+
+test('auth enforces password length boundaries', async () => {
+  const cases = [
+    'short',
+    'x'.repeat(101)
+  ];
+
+  for (const password of cases) {
+    const api = buildApi();
+
+    try {
+      const signUpResponse = await api.inject({
+        method: 'POST',
+        url: '/v1/auth/sign-up',
+        payload: {
+          email: 'password-policy@example.test',
+          password
+        }
+      });
+
+      assert.equal(signUpResponse.statusCode, 400);
+
+      const signInResponse = await api.inject({
+        method: 'POST',
+        url: '/v1/auth/sign-in',
+        payload: {
+          email: 'password-policy@example.test',
+          password
+        }
+      });
+
+      assert.equal(signInResponse.statusCode, 400);
+    } finally {
+      await api.close();
+    }
+  }
+});
+
+test('POST /v1/auth/sign-in rate limits repeated attempts', async () => {
+  const api = buildApi();
+
+  try {
+    for (let attempt = 1; attempt <= 10; attempt += 1) {
+      const response = await api.inject({
+        method: 'POST',
+        url: '/v1/auth/sign-in',
+        payload: {
+          email: 'rate-limit-signin@example.test',
+          password: 'wrong-password-123'
+        }
+      });
+
+      assert.equal(response.statusCode, 401);
+    }
+
+    const limitedResponse = await api.inject({
+      method: 'POST',
+      url: '/v1/auth/sign-in',
+      payload: {
+        email: 'rate-limit-signin@example.test',
+        password: 'wrong-password-123'
+      }
+    });
+
+    assert.equal(limitedResponse.statusCode, 429);
+
+    const healthResponse = await api.inject({
+      method: 'GET',
+      url: '/health'
+    });
+
+    assert.equal(healthResponse.statusCode, 200);
+  } finally {
+    await api.close();
+  }
+});
+
+test('POST /v1/auth/sign-up rate limits repeated attempts', async () => {
+  const api = buildApi();
+
+  try {
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      const response = await api.inject({
+        method: 'POST',
+        url: '/v1/auth/sign-up',
+        payload: {
+          email: 'invalid',
+          password: 'password-123'
+        }
+      });
+
+      assert.equal(response.statusCode, 400);
+    }
+
+    const limitedResponse = await api.inject({
+      method: 'POST',
+      url: '/v1/auth/sign-up',
+      payload: {
+        email: 'invalid',
+        password: 'password-123'
+      }
+    });
+
+    assert.equal(limitedResponse.statusCode, 429);
+  } finally {
+    await api.close();
+  }
+});
+
+test('auth endpoints reject oversized request bodies', async () => {
+  const api = buildApi();
+
+  try {
+    const response = await api.inject({
+      method: 'POST',
+      url: '/v1/auth/sign-in',
+      payload: {
+        email: 'oversized@example.test',
+        password: 'x'.repeat(70 * 1024)
+      }
+    });
+
+    assert.equal(response.statusCode, 413);
+  } finally {
+    await api.close();
+  }
+});
+
+test('POST /v1/auth/sign-up rejects oversized credentials', async () => {
+  const api = buildApi();
+
+  try {
+    const oversizedEmailResponse = await api.inject({
+      method: 'POST',
+      url: '/v1/auth/sign-up',
+      payload: {
+        email: `${'a'.repeat(250)}@example.test`,
+        password: 'password-123'
+      }
+    });
+
+    assert.equal(oversizedEmailResponse.statusCode, 400);
+
+    const oversizedPasswordResponse = await api.inject({
+      method: 'POST',
+      url: '/v1/auth/sign-up',
+      payload: {
+        email: 'signup-validation@example.test',
+        password: 'x'.repeat(101)
+      }
+    });
+
+    assert.equal(oversizedPasswordResponse.statusCode, 400);
+  } finally {
+    await api.close();
+  }
+});
+
 test('GET /v1/me rejects requests without a session', async () => {
   const api = buildApi();
 

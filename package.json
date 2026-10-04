@@ -23,6 +23,7 @@
     "test:api": "tsx --env-file=.env.local --test --test-concurrency=1 scripts/test-api-auth.ts"
   },
   "dependencies": {
+    "@fastify/rate-limit": "11.2.0",
     "@tailwindcss/postcss": "4.1.7",
     "@types/node": "^22.15.18",
     "@types/react": "19.1.4",
