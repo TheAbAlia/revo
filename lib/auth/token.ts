@@ -6,7 +6,13 @@ if (!authSecret) {
   throw new Error('AUTH_SECRET is required');
 }
 
-const key = new TextEncoder().encode(authSecret);
+const key = Buffer.from(authSecret, 'base64');
+
+if (key.length !== 32) {
+  throw new Error(
+    'AUTH_SECRET must be a base64-encoded 32-byte key'
+  );
+}
 
 export type SessionData = {
   user: { id: number };
