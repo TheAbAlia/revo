@@ -7,7 +7,7 @@ import {
   hashPassword
 } from '@/lib/auth/password';
 import { signToken } from '@/lib/auth/token';
-import { createWorkerDb } from '@/lib/db/worker';
+import { createTestDb } from '@/lib/db/test';
 import {
   automationSettings,
   brandVoices,
@@ -65,7 +65,7 @@ test('tenant database context is transaction scoped', async () => {
 
 test('POST /v1/auth/sign-in validates credentials', async () => {
   const api = buildApi();
-  const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   const suffix = `${Date.now()}-${process.pid}`;
   const email = `api-auth-signin-${suffix}@example.test`;
   const password = 'correct-password-123';
@@ -73,7 +73,7 @@ test('POST /v1/auth/sign-in validates credentials', async () => {
   let userId: number | null = null;
 
   try {
-    const [user] = await workerDb.db
+    const [user] = await testDb.db
       .insert(users)
       .values({
         email,
@@ -116,7 +116,7 @@ test('POST /v1/auth/sign-in validates credentials', async () => {
       error: 'Invalid email or password.'
     });
 
-    await workerDb.db
+    await testDb.db
       .update(users)
       .set({
         deletedAt: new Date()
@@ -138,19 +138,19 @@ test('POST /v1/auth/sign-in validates credentials', async () => {
     });
   } finally {
     if (userId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(users)
         .where(eq(users.id, userId));
     }
 
     await api.close();
-    await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
 test('POST /v1/auth/sign-up creates an owner workspace', async () => {
   const api = buildApi();
-  const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   const suffix = `${Date.now()}-${process.pid}`;
   const email = `api-auth-signup-${suffix}@example.test`;
   const password = 'new-password-123';
@@ -174,7 +174,7 @@ test('POST /v1/auth/sign-up creates an owner workspace', async () => {
     assert.ok(Number.isInteger(body.user.id));
     userId = body.user.id;
 
-    const [createdUser] = await workerDb.db
+    const [createdUser] = await testDb.db
       .select({
         id: users.id,
         email: users.email,
@@ -191,7 +191,7 @@ test('POST /v1/auth/sign-up creates an owner workspace', async () => {
       true
     );
 
-    const [membership] = await workerDb.db
+    const [membership] = await testDb.db
       .select({
         organizationId: organizationMembers.organizationId,
         role: organizationMembers.role
@@ -216,31 +216,31 @@ test('POST /v1/auth/sign-up creates an owner workspace', async () => {
     assert.equal(duplicateResponse.statusCode, 409);
   } finally {
     if (userId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizationMembers)
         .where(eq(organizationMembers.userId, userId));
     }
 
     if (organizationId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizations)
         .where(eq(organizations.id, organizationId));
     }
 
     if (userId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(users)
         .where(eq(users.id, userId));
     }
 
     await api.close();
-    await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
 test('auth normalizes email addresses consistently', async () => {
   const api = buildApi();
-  const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   const suffix = `${Date.now()}-${process.pid}`;
   const normalizedEmail =
     `normalized-${suffix}@example.test`;
@@ -266,7 +266,7 @@ test('auth normalizes email addresses consistently', async () => {
     const body = signUpResponse.json();
     userId = body.user.id;
 
-    const [createdUser] = await workerDb.db
+    const [createdUser] = await testDb.db
       .select({
         email: users.email
       })
@@ -277,7 +277,7 @@ test('auth normalizes email addresses consistently', async () => {
     assert.ok(createdUser);
     assert.equal(createdUser.email, normalizedEmail);
 
-    const [membership] = await workerDb.db
+    const [membership] = await testDb.db
       .select({
         organizationId: organizationMembers.organizationId
       })
@@ -311,25 +311,25 @@ test('auth normalizes email addresses consistently', async () => {
     assert.equal(duplicateResponse.statusCode, 409);
   } finally {
     if (userId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizationMembers)
         .where(eq(organizationMembers.userId, userId));
     }
 
     if (organizationId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizations)
         .where(eq(organizations.id, organizationId));
     }
 
     if (userId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(users)
         .where(eq(users.id, userId));
     }
 
     await api.close();
-    await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
@@ -694,14 +694,14 @@ test('GET /v1/reviews rejects requests without a session', async () => {
 });
 
 test('POST generation retry requeues a failed job', async () => {
-  const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   const suffix = `${Date.now()}-${process.pid}`;
 
   let userId: number | null = null;
   let organizationId: number | null = null;
 
   try {
-    const [user] = await workerDb.db
+    const [user] = await testDb.db
       .insert(users)
       .values({
         name: 'API retry test user',
@@ -715,7 +715,7 @@ test('POST generation retry requeues a failed job', async () => {
     assert.ok(user);
     userId = user.id;
 
-    const [organization] = await workerDb.db
+    const [organization] = await testDb.db
       .insert(organizations)
       .values({
         name: 'API Retry Tenant',
@@ -728,7 +728,7 @@ test('POST generation retry requeues a failed job', async () => {
     assert.ok(organization);
     organizationId = organization.id;
 
-    await workerDb.db
+    await testDb.db
       .insert(organizationMembers)
       .values({
         organizationId: organization.id,
@@ -736,7 +736,7 @@ test('POST generation retry requeues a failed job', async () => {
         role: 'owner'
       });
 
-    const [location] = await workerDb.db
+    const [location] = await testDb.db
       .insert(locations)
       .values({
         organizationId: organization.id,
@@ -748,7 +748,7 @@ test('POST generation retry requeues a failed job', async () => {
 
     assert.ok(location);
 
-    const [review] = await workerDb.db
+    const [review] = await testDb.db
       .insert(reviews)
       .values({
         organizationId: organization.id,
@@ -770,7 +770,7 @@ test('POST generation retry requeues a failed job', async () => {
     const dedupeKey =
       `generate-ai-draft:${organization.id}:${review.id}`;
 
-    await workerDb.db.insert(jobs).values({
+    await testDb.db.insert(jobs).values({
       organizationId: organization.id,
       type: 'generate-ai-draft',
       payload: {
@@ -806,7 +806,7 @@ test('POST generation retry requeues a failed job', async () => {
 
       assert.equal(response.statusCode, 200);
 
-      const [retriedJob] = await workerDb.db
+      const [retriedJob] = await testDb.db
         .select({
           status: jobs.status,
           attempts: jobs.attempts,
@@ -834,7 +834,7 @@ test('POST generation retry requeues a failed job', async () => {
     }
   } finally {
     if (organizationId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizations)
         .where(
           eq(organizations.id, organizationId)
@@ -842,17 +842,17 @@ test('POST generation retry requeues a failed job', async () => {
     }
 
     if (userId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(users)
         .where(eq(users.id, userId));
     }
 
-    await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
 test('response mutations are tenant scoped and preserve state transitions', async () => {
-  const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   const suffix = `${Date.now()}-${process.pid}`;
 
   let userId: number | null = null;
@@ -860,7 +860,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
   let organizationBId: number | null = null;
 
   try {
-    const [user] = await workerDb.db
+    const [user] = await testDb.db
       .insert(users)
       .values({
         name: 'Response mutation test user',
@@ -874,7 +874,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
     assert.ok(user);
     userId = user.id;
 
-    const [organizationA] = await workerDb.db
+    const [organizationA] = await testDb.db
       .insert(organizations)
       .values({
         name: 'Response Mutation Tenant A',
@@ -884,7 +884,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
         id: organizations.id
       });
 
-    const [organizationB] = await workerDb.db
+    const [organizationB] = await testDb.db
       .insert(organizations)
       .values({
         name: 'Response Mutation Tenant B',
@@ -900,7 +900,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
     organizationAId = organizationA.id;
     organizationBId = organizationB.id;
 
-    await workerDb.db
+    await testDb.db
       .insert(organizationMembers)
       .values({
         organizationId: organizationA.id,
@@ -909,7 +909,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
       });
 
     const [providerConnectionA] =
-      await workerDb.db
+      await testDb.db
         .insert(providerConnections)
         .values({
           organizationId: organizationA.id,
@@ -925,7 +925,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
 
     assert.ok(providerConnectionA);
 
-    const [locationA] = await workerDb.db
+    const [locationA] = await testDb.db
       .insert(locations)
       .values({
         organizationId: organizationA.id,
@@ -940,7 +940,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
         id: locations.id
       });
 
-    const [locationB] = await workerDb.db
+    const [locationB] = await testDb.db
       .insert(locations)
       .values({
         organizationId: organizationB.id,
@@ -953,7 +953,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
     assert.ok(locationA);
     assert.ok(locationB);
 
-    const [reviewA] = await workerDb.db
+    const [reviewA] = await testDb.db
       .insert(reviews)
       .values({
         organizationId: organizationA.id,
@@ -970,7 +970,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
         id: reviews.id
       });
 
-    const [reviewB] = await workerDb.db
+    const [reviewB] = await testDb.db
       .insert(reviews)
       .values({
         organizationId: organizationB.id,
@@ -990,7 +990,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
     assert.ok(reviewA);
     assert.ok(reviewB);
 
-    await workerDb.db.insert(responses).values([
+    await testDb.db.insert(responses).values([
       {
         organizationId: organizationA.id,
         reviewId: reviewA.id,
@@ -1032,7 +1032,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
 
       assert.equal(saveResponse.statusCode, 200);
 
-      const [saved] = await workerDb.db
+      const [saved] = await testDb.db
         .select()
         .from(responses)
         .where(
@@ -1066,7 +1066,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
 
       assert.equal(approveResponse.statusCode, 200);
 
-      const [approved] = await workerDb.db
+      const [approved] = await testDb.db
         .select()
         .from(responses)
         .where(
@@ -1097,7 +1097,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
 
       assert.equal(publishResponse.statusCode, 200);
 
-      const [publishJob] = await workerDb.db
+      const [publishJob] = await testDb.db
         .select({
           organizationId: jobs.organizationId,
           type: jobs.type,
@@ -1130,7 +1130,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
         responseId: approved.id
       });
 
-      await workerDb.db
+      await testDb.db
         .update(responses)
         .set({
           status: 'draft',
@@ -1160,7 +1160,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
         409
       );
 
-      await workerDb.db
+      await testDb.db
         .update(responses)
         .set({
           status: 'approved',
@@ -1176,7 +1176,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
           )
         );
 
-      await workerDb.db
+      await testDb.db
         .update(locations)
         .set({
           providerConnectionId: null
@@ -1198,7 +1198,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
         409
       );
 
-      await workerDb.db
+      await testDb.db
         .update(locations)
         .set({
           providerConnectionId:
@@ -1221,7 +1221,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
       );
 
       const [crossTenantPublishJob] =
-        await workerDb.db
+        await testDb.db
           .select({
             id: jobs.id
           })
@@ -1236,7 +1236,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
                 sql`${jobs.payload}->>'responseId'`,
                 String(
                   (
-                    await workerDb.db
+                    await testDb.db
                       .select({
                         id: responses.id
                       })
@@ -1296,7 +1296,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
         404
       );
 
-      const [untouchedB] = await workerDb.db
+      const [untouchedB] = await testDb.db
         .select()
         .from(responses)
         .where(
@@ -1318,7 +1318,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
     }
   } finally {
     if (organizationAId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizations)
         .where(
           eq(organizations.id, organizationAId)
@@ -1326,7 +1326,7 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
     }
 
     if (organizationBId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizations)
         .where(
           eq(organizations.id, organizationBId)
@@ -1334,17 +1334,17 @@ test('response mutations are tenant scoped and preserve state transitions', asyn
     }
 
     if (userId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(users)
         .where(eq(users.id, userId));
     }
 
-    await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
 test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => {
-  const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   const suffix = `${Date.now()}-${process.pid}`;
 
   let userId: number | null = null;
@@ -1352,7 +1352,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
   let organizationBId: number | null = null;
 
   try {
-    const [user] = await workerDb.db
+    const [user] = await testDb.db
       .insert(users)
       .values({
         name: 'API tenant test user',
@@ -1366,7 +1366,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
     assert.ok(user);
     userId = user.id;
 
-    const [organizationA] = await workerDb.db
+    const [organizationA] = await testDb.db
       .insert(organizations)
       .values({
         name: 'API Tenant A',
@@ -1376,7 +1376,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
         id: organizations.id
       });
 
-    const [organizationB] = await workerDb.db
+    const [organizationB] = await testDb.db
       .insert(organizations)
       .values({
         name: 'API Tenant B',
@@ -1392,7 +1392,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
     organizationAId = organizationA.id;
     organizationBId = organizationB.id;
 
-    await workerDb.db
+    await testDb.db
       .insert(organizationMembers)
       .values({
         organizationId: organizationA.id,
@@ -1401,7 +1401,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
       });
 
     const [providerConnectionA] =
-      await workerDb.db
+      await testDb.db
         .insert(providerConnections)
         .values({
           organizationId: organizationA.id,
@@ -1416,7 +1416,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
         });
 
     const [providerConnectionB] =
-      await workerDb.db
+      await testDb.db
         .insert(providerConnections)
         .values({
           organizationId: organizationB.id,
@@ -1433,7 +1433,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
     assert.ok(providerConnectionA);
     assert.ok(providerConnectionB);
 
-    const [locationA] = await workerDb.db
+    const [locationA] = await testDb.db
       .insert(locations)
       .values({
         organizationId: organizationA.id,
@@ -1443,7 +1443,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
         id: locations.id
       });
 
-    const [locationB] = await workerDb.db
+    const [locationB] = await testDb.db
       .insert(locations)
       .values({
         organizationId: organizationB.id,
@@ -1456,7 +1456,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
     assert.ok(locationA);
     assert.ok(locationB);
 
-    const [reviewA] = await workerDb.db
+    const [reviewA] = await testDb.db
       .insert(reviews)
       .values({
         organizationId: organizationA.id,
@@ -1475,7 +1475,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
 
     assert.ok(reviewA);
 
-    const [reviewB] = await workerDb.db
+    const [reviewB] = await testDb.db
       .insert(reviews)
       .values({
         organizationId: organizationB.id,
@@ -1494,7 +1494,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
 
     assert.ok(reviewB);
 
-    await workerDb.db.insert(reviews).values([
+    await testDb.db.insert(reviews).values([
       {
         organizationId: organizationB.id,
         locationId: locationB.id,
@@ -1656,7 +1656,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
       );
 
       const [createdLocation] =
-        await workerDb.db
+        await testDb.db
           .select({
             id: locations.id,
             organizationId:
@@ -1713,7 +1713,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
       );
 
       const [crossTenantSyncJob] =
-        await workerDb.db
+        await testDb.db
           .select({
             id: jobs.id
           })
@@ -1792,7 +1792,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
       );
 
       const [persistedOAuthConnection] =
-        await workerDb.db
+        await testDb.db
           .select({
             organizationId:
               providerConnections.organizationId,
@@ -1829,7 +1829,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
       );
 
       const [crossTenantOAuthConnection] =
-        await workerDb.db
+        await testDb.db
           .select({
             id: providerConnections.id
           })
@@ -1866,7 +1866,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
         200
       );
 
-      const [ownJob] = await workerDb.db
+      const [ownJob] = await testDb.db
         .select({
           organizationId: jobs.organizationId,
           payload: jobs.payload
@@ -1899,7 +1899,7 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
         404
       );
 
-      const [crossTenantJob] = await workerDb.db
+      const [crossTenantJob] = await testDb.db
         .select({
           id: jobs.id
         })
@@ -1948,29 +1948,29 @@ test('GET /v1/dashboard/shell excludes reviews from other tenants', async () => 
     }
   } finally {
     if (organizationBId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizations)
         .where(eq(organizations.id, organizationBId));
     }
 
     if (organizationAId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizations)
         .where(eq(organizations.id, organizationAId));
     }
 
     if (userId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(users)
         .where(eq(users.id, userId));
     }
 
-    await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
 test('Brand Voice API is tenant scoped', async () => {
-  const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   const suffix = `${Date.now()}-${process.pid}`;
 
   let userId: number | null = null;
@@ -1978,7 +1978,7 @@ test('Brand Voice API is tenant scoped', async () => {
   let organizationBId: number | null = null;
 
   try {
-    const [user] = await workerDb.db
+    const [user] = await testDb.db
       .insert(users)
       .values({
         name: 'Brand Voice API test user',
@@ -1992,7 +1992,7 @@ test('Brand Voice API is tenant scoped', async () => {
     assert.ok(user);
     userId = user.id;
 
-    const [organizationA] = await workerDb.db
+    const [organizationA] = await testDb.db
       .insert(organizations)
       .values({
         name: 'Brand Voice Tenant A',
@@ -2002,7 +2002,7 @@ test('Brand Voice API is tenant scoped', async () => {
         id: organizations.id
       });
 
-    const [organizationB] = await workerDb.db
+    const [organizationB] = await testDb.db
       .insert(organizations)
       .values({
         name: 'Brand Voice Tenant B',
@@ -2018,7 +2018,7 @@ test('Brand Voice API is tenant scoped', async () => {
     organizationAId = organizationA.id;
     organizationBId = organizationB.id;
 
-    await workerDb.db
+    await testDb.db
       .insert(organizationMembers)
       .values({
         organizationId: organizationA.id,
@@ -2026,7 +2026,7 @@ test('Brand Voice API is tenant scoped', async () => {
         role: 'owner'
       });
 
-    await workerDb.db
+    await testDb.db
       .insert(brandVoices)
       .values([
         {
@@ -2098,7 +2098,7 @@ test('Brand Voice API is tenant scoped', async () => {
 
       assert.equal(updateResponse.statusCode, 200);
 
-      const [tenantAVoice] = await workerDb.db
+      const [tenantAVoice] = await testDb.db
         .select({
           name: brandVoices.name,
           instructions: brandVoices.instructions
@@ -2127,7 +2127,7 @@ test('Brand Voice API is tenant scoped', async () => {
         'Updated Tenant A instructions'
       );
 
-      const [tenantBVoice] = await workerDb.db
+      const [tenantBVoice] = await testDb.db
         .select({
           name: brandVoices.name,
           instructions: brandVoices.instructions
@@ -2160,7 +2160,7 @@ test('Brand Voice API is tenant scoped', async () => {
     }
   } finally {
     if (organizationBId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizations)
         .where(
           eq(organizations.id, organizationBId)
@@ -2168,7 +2168,7 @@ test('Brand Voice API is tenant scoped', async () => {
     }
 
     if (organizationAId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizations)
         .where(
           eq(organizations.id, organizationAId)
@@ -2176,17 +2176,17 @@ test('Brand Voice API is tenant scoped', async () => {
     }
 
     if (userId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(users)
         .where(eq(users.id, userId));
     }
 
-    await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
 test('Automations API is tenant scoped', async () => {
-  const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   const suffix = `${Date.now()}-${process.pid}`;
 
   let userId: number | null = null;
@@ -2194,7 +2194,7 @@ test('Automations API is tenant scoped', async () => {
   let organizationBId: number | null = null;
 
   try {
-    const [user] = await workerDb.db
+    const [user] = await testDb.db
       .insert(users)
       .values({
         name: 'Automations API test user',
@@ -2208,7 +2208,7 @@ test('Automations API is tenant scoped', async () => {
     assert.ok(user);
     userId = user.id;
 
-    const [organizationA] = await workerDb.db
+    const [organizationA] = await testDb.db
       .insert(organizations)
       .values({
         name: 'Automations Tenant A',
@@ -2218,7 +2218,7 @@ test('Automations API is tenant scoped', async () => {
         id: organizations.id
       });
 
-    const [organizationB] = await workerDb.db
+    const [organizationB] = await testDb.db
       .insert(organizations)
       .values({
         name: 'Automations Tenant B',
@@ -2234,7 +2234,7 @@ test('Automations API is tenant scoped', async () => {
     organizationAId = organizationA.id;
     organizationBId = organizationB.id;
 
-    await workerDb.db
+    await testDb.db
       .insert(organizationMembers)
       .values({
         organizationId: organizationA.id,
@@ -2242,7 +2242,7 @@ test('Automations API is tenant scoped', async () => {
         role: 'owner'
       });
 
-    await workerDb.db
+    await testDb.db
       .insert(automationSettings)
       .values({
         organizationId: organizationB.id,
@@ -2292,7 +2292,7 @@ test('Automations API is tenant scoped', async () => {
 
       assert.equal(updateResponse.statusCode, 200);
 
-      const [tenantASettings] = await workerDb.db
+      const [tenantASettings] = await testDb.db
         .select({
           autoGenerateDrafts:
             automationSettings.autoGenerateDrafts
@@ -2312,7 +2312,7 @@ test('Automations API is tenant scoped', async () => {
         true
       );
 
-      const [tenantBSettings] = await workerDb.db
+      const [tenantBSettings] = await testDb.db
         .select({
           autoGenerateDrafts:
             automationSettings.autoGenerateDrafts
@@ -2347,7 +2347,7 @@ test('Automations API is tenant scoped', async () => {
       assert.equal(disableResponse.statusCode, 200);
 
       const [disabledTenantASettings] =
-        await workerDb.db
+        await testDb.db
           .select({
             autoGenerateDrafts:
               automationSettings.autoGenerateDrafts
@@ -2371,7 +2371,7 @@ test('Automations API is tenant scoped', async () => {
     }
   } finally {
     if (organizationBId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizations)
         .where(
           eq(organizations.id, organizationBId)
@@ -2379,7 +2379,7 @@ test('Automations API is tenant scoped', async () => {
     }
 
     if (organizationAId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizations)
         .where(
           eq(organizations.id, organizationAId)
@@ -2387,17 +2387,17 @@ test('Automations API is tenant scoped', async () => {
     }
 
     if (userId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(users)
         .where(eq(users.id, userId));
     }
 
-    await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
 test('Analytics API is tenant scoped', async () => {
-  const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   const suffix = `${Date.now()}-${process.pid}`;
 
   let userId: number | null = null;
@@ -2405,7 +2405,7 @@ test('Analytics API is tenant scoped', async () => {
   let organizationBId: number | null = null;
 
   try {
-    const [user] = await workerDb.db
+    const [user] = await testDb.db
       .insert(users)
       .values({
         name: 'Analytics API test user',
@@ -2419,7 +2419,7 @@ test('Analytics API is tenant scoped', async () => {
     assert.ok(user);
     userId = user.id;
 
-    const [organizationA] = await workerDb.db
+    const [organizationA] = await testDb.db
       .insert(organizations)
       .values({
         name: 'Analytics Tenant A',
@@ -2429,7 +2429,7 @@ test('Analytics API is tenant scoped', async () => {
         id: organizations.id
       });
 
-    const [organizationB] = await workerDb.db
+    const [organizationB] = await testDb.db
       .insert(organizations)
       .values({
         name: 'Analytics Tenant B',
@@ -2445,7 +2445,7 @@ test('Analytics API is tenant scoped', async () => {
     organizationAId = organizationA.id;
     organizationBId = organizationB.id;
 
-    await workerDb.db
+    await testDb.db
       .insert(organizationMembers)
       .values({
         organizationId: organizationA.id,
@@ -2453,7 +2453,7 @@ test('Analytics API is tenant scoped', async () => {
         role: 'owner'
       });
 
-    const [locationA] = await workerDb.db
+    const [locationA] = await testDb.db
       .insert(locations)
       .values({
         organizationId: organizationA.id,
@@ -2463,7 +2463,7 @@ test('Analytics API is tenant scoped', async () => {
         id: locations.id
       });
 
-    const [locationB] = await workerDb.db
+    const [locationB] = await testDb.db
       .insert(locations)
       .values({
         organizationId: organizationB.id,
@@ -2476,7 +2476,7 @@ test('Analytics API is tenant scoped', async () => {
     assert.ok(locationA);
     assert.ok(locationB);
 
-    const tenantAReviews = await workerDb.db
+    const tenantAReviews = await testDb.db
       .insert(reviews)
       .values([
         {
@@ -2508,7 +2508,7 @@ test('Analytics API is tenant scoped', async () => {
 
     assert.equal(tenantAReviews.length, 2);
 
-    await workerDb.db.insert(responses).values({
+    await testDb.db.insert(responses).values({
       organizationId: organizationA.id,
       reviewId: tenantAReviews[0].id,
       content: 'Tenant A response',
@@ -2516,7 +2516,7 @@ test('Analytics API is tenant scoped', async () => {
       approvedAt: new Date()
     });
 
-    await workerDb.db.insert(reviews).values({
+    await testDb.db.insert(reviews).values({
       organizationId: organizationB.id,
       locationId: locationB.id,
       provider: 'google',
@@ -2595,7 +2595,7 @@ test('Analytics API is tenant scoped', async () => {
     }
   } finally {
     if (organizationBId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizations)
         .where(
           eq(organizations.id, organizationBId)
@@ -2603,7 +2603,7 @@ test('Analytics API is tenant scoped', async () => {
     }
 
     if (organizationAId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizations)
         .where(
           eq(organizations.id, organizationAId)
@@ -2611,18 +2611,18 @@ test('Analytics API is tenant scoped', async () => {
     }
 
     if (userId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(users)
         .where(eq(users.id, userId));
     }
 
-    await workerDb.client.end();
+    await testDb.client.end();
   }
 });
 
 
 test('Settings API is authenticated and user scoped', async () => {
-  const workerDb = createWorkerDb();
+  const testDb = createTestDb();
   const suffix = `${Date.now()}-${process.pid}`;
 
   let userId: number | null = null;
@@ -2636,7 +2636,7 @@ test('Settings API is authenticated and user scoped', async () => {
     const passwordHash =
       await hashPassword(currentPassword);
 
-    const [user] = await workerDb.db
+    const [user] = await testDb.db
       .insert(users)
       .values({
         name: 'Settings API test user',
@@ -2647,7 +2647,7 @@ test('Settings API is authenticated and user scoped', async () => {
         id: users.id
       });
 
-    const [otherUser] = await workerDb.db
+    const [otherUser] = await testDb.db
       .insert(users)
       .values({
         name: 'Other Settings user',
@@ -2664,7 +2664,7 @@ test('Settings API is authenticated and user scoped', async () => {
     userId = user.id;
     otherUserId = otherUser.id;
 
-    const [organization] = await workerDb.db
+    const [organization] = await testDb.db
       .insert(organizations)
       .values({
         name: 'Settings Workspace',
@@ -2677,7 +2677,7 @@ test('Settings API is authenticated and user scoped', async () => {
     assert.ok(organization);
     organizationId = organization.id;
 
-    await workerDb.db
+    await testDb.db
       .insert(organizationMembers)
       .values({
         organizationId: organization.id,
@@ -2778,7 +2778,7 @@ test('Settings API is authenticated and user scoped', async () => {
         }
       });
 
-      const [storedUser] = await workerDb.db
+      const [storedUser] = await testDb.db
         .select({
           name: users.name,
           email: users.email
@@ -2792,7 +2792,7 @@ test('Settings API is authenticated and user scoped', async () => {
         email: updatedEmail
       });
 
-      const [storedOtherUser] = await workerDb.db
+      const [storedOtherUser] = await testDb.db
         .select({
           name: users.name,
           email: users.email
@@ -2868,7 +2868,7 @@ test('Settings API is authenticated and user scoped', async () => {
         success: true
       });
 
-      const [passwordUser] = await workerDb.db
+      const [passwordUser] = await testDb.db
         .select({
           passwordHash: users.passwordHash
         })
@@ -2896,23 +2896,23 @@ test('Settings API is authenticated and user scoped', async () => {
     }
   } finally {
     if (organizationId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(organizations)
         .where(eq(organizations.id, organizationId));
     }
 
     if (userId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(users)
         .where(eq(users.id, userId));
     }
 
     if (otherUserId !== null) {
-      await workerDb.db
+      await testDb.db
         .delete(users)
         .where(eq(users.id, otherUserId));
     }
 
-    await workerDb.client.end();
+    await testDb.client.end();
   }
 });
