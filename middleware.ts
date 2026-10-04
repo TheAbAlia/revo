@@ -18,11 +18,63 @@ function isPublicRoute(pathname: string) {
   );
 }
 
+function createContentSecurityPolicy(nonce: string) {
+  const isDevelopment = process.env.NODE_ENV === 'development';
+
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}'${
+      isDevelopment ? " 'unsafe-eval'" : ''
+    }`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'"
+  ].join('; ');
+}
+
+function createRequestHeaders(request: NextRequest) {
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const contentSecurityPolicy =
+    createContentSecurityPolicy(nonce);
+  const requestHeaders = new Headers(request.headers);
+
+  requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set(
+    'Content-Security-Policy',
+    contentSecurityPolicy
+  );
+
+  return {
+    contentSecurityPolicy,
+    requestHeaders
+  };
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const {
+    contentSecurityPolicy,
+    requestHeaders
+  } = createRequestHeaders(request);
 
   if (isPublicRoute(pathname)) {
-    return NextResponse.next();
+    const response = NextResponse.next({
+      request: {
+        headers: requestHeaders
+      }
+    });
+
+    response.headers.set(
+      'Content-Security-Policy',
+      contentSecurityPolicy
+    );
+
+    return response;
   }
 
   const sessionCookie = request.cookies.get('session');
@@ -42,7 +94,16 @@ export async function middleware(request: NextRequest) {
 
   try {
     const parsed = await verifyToken(sessionCookie.value);
-    const response = NextResponse.next();
+    const response = NextResponse.next({
+      request: {
+        headers: requestHeaders
+      }
+    });
+
+    response.headers.set(
+      'Content-Security-Policy',
+      contentSecurityPolicy
+    );
 
     if (request.method === 'GET') {
       const expiresInOneDay = new Date(
