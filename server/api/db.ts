@@ -5,13 +5,13 @@ import { sql } from 'drizzle-orm';
 import * as schema from '@/lib/db/schema';
 
 export function createApiDb() {
-  if (!process.env.POSTGRES_URL) {
+  if (!process.env.POSTGRES_API_URL) {
     throw new Error(
-      'POSTGRES_URL environment variable is not set'
+      'POSTGRES_API_URL environment variable is not set'
     );
   }
 
-  const client = postgres(process.env.POSTGRES_URL);
+  const client = postgres(process.env.POSTGRES_API_URL);
 
   return {
     client,
