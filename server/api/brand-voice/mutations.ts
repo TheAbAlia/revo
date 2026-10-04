@@ -1,10 +1,10 @@
 import { and, eq } from 'drizzle-orm';
 
 import { brandVoices } from '@/lib/db/schema';
-import type { ApiDb } from '@/server/api/db';
+import type { TenantDb } from '@/server/api/db';
 
 export async function getDefaultBrandVoice(
-  db: ApiDb,
+  db: TenantDb,
   organizationId: number
 ) {
   const [brandVoice] = await db
@@ -28,7 +28,7 @@ export async function getDefaultBrandVoice(
 }
 
 export async function saveDefaultBrandVoice(
-  db: ApiDb,
+  db: TenantDb,
   organizationId: number,
   name: string,
   instructions: string

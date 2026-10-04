@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 
-import type { ApiDb } from '@/server/api/db';
+import type { TenantDb } from '@/server/api/db';
 import {
   locations,
   providerConnections
@@ -8,7 +8,7 @@ import {
 import { enqueueJobWithDb } from '@/lib/jobs/enqueue-db';
 
 export async function createLocation(
-  db: ApiDb,
+  db: TenantDb,
   organizationId: number,
   name: string
 ) {
@@ -27,7 +27,7 @@ export async function createLocation(
 }
 
 export async function syncLocationReviews(
-  db: ApiDb,
+  db: TenantDb,
   organizationId: number,
   locationId: number
 ) {

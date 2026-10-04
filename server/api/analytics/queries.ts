@@ -11,10 +11,10 @@ import {
   responses,
   reviews
 } from '@/lib/db/schema';
-import type { ApiDb } from '../db';
+import type { TenantDb } from '../db';
 
 export async function getAnalyticsOverview(
-  db: ApiDb,
+  db: TenantDb,
   organizationId: number
 ) {
   const [summary] = await db

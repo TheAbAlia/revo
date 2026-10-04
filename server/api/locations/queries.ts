@@ -1,6 +1,6 @@
 import { and, count, eq, sql } from 'drizzle-orm';
 
-import type { ApiDb } from '@/server/api/db';
+import type { TenantDb } from '@/server/api/db';
 import {
   locations,
   providerConnections,
@@ -9,7 +9,7 @@ import {
 } from '@/lib/db/schema';
 
 export async function getLocations(
-  db: ApiDb,
+  db: TenantDb,
   organizationId: number
 ) {
   const rows = await db

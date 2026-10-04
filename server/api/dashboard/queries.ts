@@ -9,10 +9,10 @@ import {
   responses,
   reviews
 } from '@/lib/db/schema';
-import type { ApiDb } from '../db';
+import type { TenantDb } from '../db';
 
 export async function getDashboardShell(
-  db: ApiDb,
+  db: TenantDb,
   organizationId: number
 ) {
   const [result] = await db

@@ -131,11 +131,16 @@ export function buildApi() {
       const { saveReviewResponseDraft } =
         await import('./reviews/mutations');
 
-      const result = await saveReviewResponseDraft(
+      const result = await withTenantContext(
         apiDb.db,
         context.organization.id,
-        reviewId,
-        content
+        (tx) =>
+          saveReviewResponseDraft(
+            tx,
+            context.organization.id,
+            reviewId,
+            content
+          )
       );
 
       if (result.status === 'not-found') {
@@ -194,10 +199,15 @@ export function buildApi() {
       const { publishReviewResponse } =
         await import('./reviews/mutations');
 
-      const result = await publishReviewResponse(
+      const result = await withTenantContext(
         apiDb.db,
         context.organization.id,
-        reviewId
+        (tx) =>
+          publishReviewResponse(
+            tx,
+            context.organization.id,
+            reviewId
+          )
       );
 
       if (result.status === 'not-found') {
@@ -292,11 +302,16 @@ export function buildApi() {
       const { approveReviewResponse } =
         await import('./reviews/mutations');
 
-      const result = await approveReviewResponse(
+      const result = await withTenantContext(
         apiDb.db,
         context.organization.id,
-        reviewId,
-        content
+        (tx) =>
+          approveReviewResponse(
+            tx,
+            context.organization.id,
+            reviewId,
+            content
+          )
       );
 
       if (result.status === 'not-found') {
@@ -355,12 +370,16 @@ export function buildApi() {
       const { retryReviewResponseGeneration } =
         await import('./reviews/mutations');
 
-      const result =
-        await retryReviewResponseGeneration(
-          apiDb.db,
-          context.organization.id,
-          reviewId
-        );
+      const result = await withTenantContext(
+        apiDb.db,
+        context.organization.id,
+        (tx) =>
+          retryReviewResponseGeneration(
+            tx,
+            context.organization.id,
+            reviewId
+          )
+      );
 
       if (result.status === 'not-found') {
         return reply.code(404).send({
@@ -427,10 +446,15 @@ export function buildApi() {
       const { generateReviewResponse } =
         await import('./reviews/mutations');
 
-      const result = await generateReviewResponse(
+      const result = await withTenantContext(
         apiDb.db,
         context.organization.id,
-        reviewId
+        (tx) =>
+          generateReviewResponse(
+            tx,
+            context.organization.id,
+            reviewId
+          )
       );
 
       if (!result) {
@@ -495,10 +519,15 @@ export function buildApi() {
     const { createLocation } =
       await import('./locations/mutations');
 
-    const location = await createLocation(
+    const location = await withTenantContext(
       apiDb.db,
       context.organization.id,
-      name
+      (tx) =>
+        createLocation(
+          tx,
+          context.organization.id,
+          name
+        )
     );
 
     return {
@@ -551,12 +580,16 @@ export function buildApi() {
       const { syncLocationReviews } =
         await import('./locations/mutations');
 
-      const result =
-        await syncLocationReviews(
-          apiDb.db,
-          context.organization.id,
-          numericLocationId
-        );
+      const result = await withTenantContext(
+        apiDb.db,
+        context.organization.id,
+        (tx) =>
+          syncLocationReviews(
+            tx,
+            context.organization.id,
+            numericLocationId
+          )
+      );
 
       if (result.status === 'not-found') {
         return reply.code(404).send({
@@ -611,9 +644,14 @@ export function buildApi() {
     const { getLocations } =
       await import('./locations/queries');
 
-    const locationRows = await getLocations(
+    const locationRows = await withTenantContext(
       apiDb.db,
-      context.organization.id
+      context.organization.id,
+      (tx) =>
+        getLocations(
+          tx,
+          context.organization.id
+        )
     );
 
     return {
@@ -686,9 +724,14 @@ export function buildApi() {
     const { getDashboardShell } =
       await import('./dashboard/queries');
 
-    const shell = await getDashboardShell(
+    const shell = await withTenantContext(
       apiDb.db,
-      context.organization.id
+      context.organization.id,
+      (tx) =>
+        getDashboardShell(
+          tx,
+          context.organization.id
+        )
     );
 
     return {
@@ -743,12 +786,16 @@ export function buildApi() {
           './provider-connections/mutations'
         );
 
-      const connection =
-        await getGoogleProviderConnection(
-          apiDb.db,
-          context.organization.id,
-          numericConnectionId
-        );
+      const connection = await withTenantContext(
+        apiDb.db,
+        context.organization.id,
+        (tx) =>
+          getGoogleProviderConnection(
+            tx,
+            context.organization.id,
+            numericConnectionId
+          )
+      );
 
       if (!connection) {
         return reply.code(404).send({
@@ -803,19 +850,27 @@ export function buildApi() {
         });
       }
 
+      const externalAccountId =
+        body.externalAccountId;
+      const refreshToken = body.refreshToken;
+
       const {
         upsertGoogleProviderConnection
       } = await import(
         './provider-connections/mutations'
       );
 
-      const connection =
-        await upsertGoogleProviderConnection(
-          apiDb.db,
-          context.organization.id,
-          body.externalAccountId,
-          body.refreshToken
-        );
+      const connection = await withTenantContext(
+        apiDb.db,
+        context.organization.id,
+        (tx) =>
+          upsertGoogleProviderConnection(
+            tx,
+            context.organization.id,
+            externalAccountId,
+            refreshToken
+          )
+      );
 
       return {
         success: true,
@@ -851,11 +906,15 @@ export function buildApi() {
       const { getDefaultBrandVoice } =
         await import('./brand-voice/mutations');
 
-      const brandVoice =
-        await getDefaultBrandVoice(
-          apiDb.db,
-          context.organization.id
-        );
+      const brandVoice = await withTenantContext(
+        apiDb.db,
+        context.organization.id,
+        (tx) =>
+          getDefaultBrandVoice(
+            tx,
+            context.organization.id
+          )
+      );
 
       return {
         organization: context.organization,
@@ -934,13 +993,17 @@ export function buildApi() {
       const { saveDefaultBrandVoice } =
         await import('./brand-voice/mutations');
 
-      const brandVoice =
-        await saveDefaultBrandVoice(
-          apiDb.db,
-          context.organization.id,
-          name,
-          instructions
-        );
+      const brandVoice = await withTenantContext(
+        apiDb.db,
+        context.organization.id,
+        (tx) =>
+          saveDefaultBrandVoice(
+            tx,
+            context.organization.id,
+            name,
+            instructions
+          )
+      );
 
       return {
         success: true,
@@ -976,11 +1039,15 @@ export function buildApi() {
       const { getAutomationSettings } =
         await import('./automations/mutations');
 
-      const settings =
-        await getAutomationSettings(
-          apiDb.db,
-          context.organization.id
-        );
+      const settings = await withTenantContext(
+        apiDb.db,
+        context.organization.id,
+        (tx) =>
+          getAutomationSettings(
+            tx,
+            context.organization.id
+          )
+      );
 
       return {
         settings
@@ -1025,15 +1092,22 @@ export function buildApi() {
         });
       }
 
+      const autoGenerateDrafts =
+        body.autoGenerateDrafts;
+
       const { saveAutomationSettings } =
         await import('./automations/mutations');
 
-      const settings =
-        await saveAutomationSettings(
-          apiDb.db,
-          context.organization.id,
-          body.autoGenerateDrafts
-        );
+      const settings = await withTenantContext(
+        apiDb.db,
+        context.organization.id,
+        (tx) =>
+          saveAutomationSettings(
+            tx,
+            context.organization.id,
+            autoGenerateDrafts
+          )
+      );
 
       return {
         success: true,
@@ -1069,11 +1143,15 @@ export function buildApi() {
       const { getAnalyticsOverview } =
         await import('./analytics/queries');
 
-      const analytics =
-        await getAnalyticsOverview(
-          apiDb.db,
-          context.organization.id
-        );
+      const analytics = await withTenantContext(
+        apiDb.db,
+        context.organization.id,
+        (tx) =>
+          getAnalyticsOverview(
+            tx,
+            context.organization.id
+          )
+      );
 
       return {
         analytics

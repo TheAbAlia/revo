@@ -1,11 +1,11 @@
 import { and, eq } from 'drizzle-orm';
 
-import type { ApiDb } from '@/server/api/db';
+import type { TenantDb } from '@/server/api/db';
 import { providerConnections } from '@/lib/db/schema';
 import { encryptCredential } from '@/lib/integrations/crypto';
 
 export async function getGoogleProviderConnection(
-  db: ApiDb,
+  db: TenantDb,
   organizationId: number,
   connectionId: number
 ) {
@@ -32,7 +32,7 @@ export async function getGoogleProviderConnection(
 }
 
 export async function upsertGoogleProviderConnection(
-  db: ApiDb,
+  db: TenantDb,
   organizationId: number,
   externalAccountId: string,
   refreshToken: string
