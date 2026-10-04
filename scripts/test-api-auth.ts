@@ -21,6 +21,47 @@ import {
   users
 } from '@/lib/db/schema';
 import { buildApi } from '@/server/api/app';
+import {
+  createApiDb,
+  withTenantContext
+} from '@/server/api/db';
+
+test('tenant database context is transaction scoped', async () => {
+  const apiDb = createApiDb();
+
+  try {
+    const organizationId = await withTenantContext(
+      apiDb.db,
+      424242,
+      async (tx) => {
+        const result = await tx.execute(sql`
+          select current_setting(
+            'revo.organization_id',
+            true
+          ) as organization_id
+        `);
+
+        return result[0]?.organization_id;
+      }
+    );
+
+    assert.equal(organizationId, '424242');
+
+    const result = await apiDb.db.execute(sql`
+      select current_setting(
+        'revo.organization_id',
+        true
+      ) as organization_id
+    `);
+
+    assert.ok(
+      result[0]?.organization_id === null ||
+      result[0]?.organization_id === ''
+    );
+  } finally {
+    await apiDb.client.end();
+  }
+});
 
 test('POST /v1/auth/sign-in validates credentials', async () => {
   const api = buildApi();

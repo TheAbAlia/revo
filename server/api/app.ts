@@ -5,7 +5,10 @@ import {
 import {
   getSessionTokenFromRequest
 } from './auth/session';
-import { createApiDb } from './db';
+import {
+  createApiDb,
+  withTenantContext
+} from './db';
 
 const API_BODY_LIMIT_BYTES = 64 * 1024;
 
@@ -643,9 +646,14 @@ export function buildApi() {
     const { getReviewInbox } =
       await import('./reviews/queries');
 
-    const items = await getReviewInbox(
+    const items = await withTenantContext(
       apiDb.db,
-      context.organization.id
+      context.organization.id,
+      (tx) =>
+        getReviewInbox(
+          tx,
+          context.organization.id
+        )
     );
 
     return {

@@ -7,10 +7,10 @@ import {
   reviews
 } from '@/lib/db/schema';
 import { enqueueJobWithDb } from '@/lib/jobs/enqueue-db';
-import type { ApiDb } from '../db';
+import type { TenantDb } from '../db';
 
 export async function generateReviewResponse(
-  db: ApiDb,
+  db: TenantDb,
   organizationId: number,
   reviewId: number
 ) {
@@ -49,7 +49,7 @@ export async function generateReviewResponse(
 }
 
 export async function retryReviewResponseGeneration(
-  db: ApiDb,
+  db: TenantDb,
   organizationId: number,
   reviewId: number
 ) {
@@ -122,7 +122,7 @@ export async function retryReviewResponseGeneration(
 }
 
 export async function saveReviewResponseDraft(
-  db: ApiDb,
+  db: TenantDb,
   organizationId: number,
   reviewId: number,
   content: string
@@ -160,7 +160,7 @@ export async function saveReviewResponseDraft(
 }
 
 export async function approveReviewResponse(
-  db: ApiDb,
+  db: TenantDb,
   organizationId: number,
   reviewId: number,
   content: string
@@ -198,7 +198,7 @@ export async function approveReviewResponse(
 }
 
 export async function publishReviewResponse(
-  db: ApiDb,
+  db: TenantDb,
   organizationId: number,
   reviewId: number
 ) {

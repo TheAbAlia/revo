@@ -7,10 +7,10 @@ import {
   reviews
 } from '@/lib/db/schema';
 import type { ReviewWithResponse } from '@/lib/domain/reviews';
-import type { ApiDb } from '../db';
+import type { TenantDb } from '../db';
 
 export async function getReviewInbox(
-  db: ApiDb,
+  db: TenantDb,
   organizationId: number
 ): Promise<ReviewWithResponse[]> {
   const rows = await db
