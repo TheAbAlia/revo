@@ -9,7 +9,10 @@ import {
   comparePasswords,
   hashPassword
 } from '@/lib/auth/password';
-import type { ApiDb } from '../db';
+import {
+  setTenantContext,
+  type ApiDb
+} from '../db';
 
 function createOrganizationSlug(email: string) {
   const base =
@@ -108,6 +111,8 @@ export async function registerUser(
     if (!organization) {
       throw new Error('Failed to create organization');
     }
+
+    await setTenantContext(tx, organization.id);
 
     await tx
       .insert(organizationMembers)

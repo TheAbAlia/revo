@@ -1,11 +1,6 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 import { verifyToken } from '@/lib/auth/token';
-import {
-  organizationMembers,
-  organizations,
-  users
-} from '@/lib/db/schema';
 import type { ApiDb } from '../db';
 
 export type AuthenticatedContext = {
@@ -42,34 +37,25 @@ export async function resolveAuthenticatedContext(
     return null;
   }
 
-  const [context] = await db
-    .select({
-      userId: users.id,
-      userName: users.name,
-      userEmail: users.email,
-      organizationId: organizations.id,
-      organizationName: organizations.name,
-      role: organizationMembers.role
-    })
-    .from(users)
-    .innerJoin(
-      organizationMembers,
-      eq(organizationMembers.userId, users.id)
+  const [context] = await db.execute<{
+    user_id: number;
+    user_name: string | null;
+    user_email: string;
+    organization_id: number;
+    organization_name: string;
+    membership_role: string;
+  }>(sql`
+    SELECT
+      user_id,
+      user_name,
+      user_email,
+      organization_id,
+      organization_name,
+      membership_role
+    FROM public.revo_authenticated_context(
+      ${session.user.id}
     )
-    .innerJoin(
-      organizations,
-      eq(
-        organizations.id,
-        organizationMembers.organizationId
-      )
-    )
-    .where(
-      and(
-        eq(users.id, session.user.id),
-        isNull(users.deletedAt)
-      )
-    )
-    .limit(1);
+  `);
 
   if (!context) {
     return null;
@@ -77,14 +63,14 @@ export async function resolveAuthenticatedContext(
 
   return {
     user: {
-      id: context.userId,
-      name: context.userName,
-      email: context.userEmail
+      id: context.user_id,
+      name: context.user_name,
+      email: context.user_email
     },
     organization: {
-      id: context.organizationId,
-      name: context.organizationName
+      id: context.organization_id,
+      name: context.organization_name
     },
-    role: context.role
+    role: context.membership_role
   };
 }
