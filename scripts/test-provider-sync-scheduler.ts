@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { and, eq } from 'drizzle-orm';
 
+import { createTestDb } from '@/lib/db/test';
 import { createWorkerDb } from '@/lib/db/worker';
 import {
   jobs,
@@ -16,7 +17,10 @@ import {
 } from '@/lib/integrations/providers/schedule-syncs';
 
 test('provider sync scheduler enqueues only due healthy locations and deduplicates active jobs', async () => {
-  const { db, client } = createWorkerDb();
+  const testDb = createTestDb();
+  const workerDb = createWorkerDb();
+
+  const db = workerDb.db;
 
   const now = new Date('2026-09-29T12:00:00.000Z');
   const staleAttempt = new Date(
@@ -29,7 +33,7 @@ test('provider sync scheduler enqueues only due healthy locations and deduplicat
   let organizationId: number | undefined;
 
   try {
-    const [organization] = await db
+    const [organization] = await testDb.db
       .insert(organizations)
       .values({
         name: 'Provider Scheduler Test',
@@ -41,7 +45,7 @@ test('provider sync scheduler enqueues only due healthy locations and deduplicat
 
     organizationId = organization.id;
 
-    const [healthyConnection] = await db
+    const [healthyConnection] = await testDb.db
       .insert(providerConnections)
       .values({
         organizationId,
@@ -54,7 +58,7 @@ test('provider sync scheduler enqueues only due healthy locations and deduplicat
         id: providerConnections.id
       });
 
-    const [reauthConnection] = await db
+    const [reauthConnection] = await testDb.db
       .insert(providerConnections)
       .values({
         organizationId,
@@ -67,7 +71,7 @@ test('provider sync scheduler enqueues only due healthy locations and deduplicat
         id: providerConnections.id
       });
 
-    const insertedLocations = await db
+    const insertedLocations = await testDb.db
       .insert(locations)
       .values([
         {
@@ -184,11 +188,12 @@ test('provider sync scheduler enqueues only due healthy locations and deduplicat
     assert.equal(jobsAfterSecondRun.length, 2);
   } finally {
     if (organizationId !== undefined) {
-      await db
+      await testDb.db
         .delete(organizations)
         .where(eq(organizations.id, organizationId));
     }
 
-    await client.end();
+    await workerDb.client.end();
+    await testDb.client.end();
   }
 });

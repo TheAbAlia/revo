@@ -1,5 +1,5 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import type { createWorkerDb } from '@/lib/db/worker';
+import type { DbExecutor } from '@/lib/db/types';
 import {
   aiResponseGenerations,
   brandVoices,
@@ -14,13 +14,13 @@ import {
 import { PermanentJobError } from '@/lib/jobs/errors';
 
 export function generateDraftForReview(
-  db: ReturnType<typeof createWorkerDb>['db'],
+  db: DbExecutor,
   organizationId: number,
   reviewId: number
 ): Promise<ReviewResponseGenerationResult>;
 
 export function generateDraftForReview(
-  db: ReturnType<typeof createWorkerDb>['db'],
+  db: DbExecutor,
   organizationId: number,
   reviewId: number,
   options: {
@@ -30,7 +30,7 @@ export function generateDraftForReview(
 ): Promise<ReviewResponseGenerationResult | null>;
 
 export async function generateDraftForReview(
-  db: ReturnType<typeof createWorkerDb>['db'],
+  db: DbExecutor,
   organizationId: number,
   reviewId: number,
   options?: {

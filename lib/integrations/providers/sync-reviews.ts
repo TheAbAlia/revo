@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 
-import type { createWorkerDb } from '@/lib/db/worker';
+import type { DbExecutor } from '@/lib/db/types';
 import { locations, providerConnections } from '@/lib/db/schema';
 import { decryptCredential } from '@/lib/integrations/crypto';
 import { fetchGoogleReviews } from '@/lib/integrations/google/fetch-reviews';
@@ -9,7 +9,7 @@ import { syncGoogleLocationReviews } from '@/lib/integrations/google/sync-review
 import { getProviderSyncContext } from '@/lib/integrations/providers/sync-context';
 
 async function getProviderRefreshToken(
-  db: ReturnType<typeof createWorkerDb>['db'],
+  db: DbExecutor,
   organizationId: number,
   providerConnectionId: number
 ) {
@@ -35,7 +35,7 @@ async function getProviderRefreshToken(
 }
 
 export async function syncProviderReviews(
-  db: ReturnType<typeof createWorkerDb>['db'],
+  db: DbExecutor,
   organizationId: number,
   locationId: number
 ) {

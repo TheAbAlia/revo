@@ -1,21 +1,15 @@
-import {
-  and,
-  eq,
-  isNotNull,
-  or,
-  isNull,
-  lte
-} from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 import type { createWorkerDb } from '@/lib/db/worker';
-import {
-  locations,
-  providerConnections
-} from '@/lib/db/schema';
 import { enqueueJobWithDb } from '@/lib/jobs/enqueue-db';
 
 export const PROVIDER_SYNC_INTERVAL_MS =
   15 * 60 * 1000;
+
+type DueProviderSyncLocation = {
+  organization_id: number;
+  location_id: number;
+};
 
 export async function enqueueDueProviderSyncs(
   db: ReturnType<typeof createWorkerDb>['db'],
@@ -25,49 +19,30 @@ export async function enqueueDueProviderSyncs(
     now.getTime() - PROVIDER_SYNC_INTERVAL_MS
   );
 
-  const dueLocations = await db
-    .select({
-      id: locations.id,
-      organizationId: locations.organizationId
-    })
-    .from(locations)
-    .innerJoin(
-      providerConnections,
-      and(
-        eq(
-          providerConnections.id,
-          locations.providerConnectionId
-        ),
-        eq(
-          providerConnections.organizationId,
-          locations.organizationId
-        )
+  const dueBeforeTimestamp =
+    dueBefore.toISOString().replace('Z', '');
+
+  const dueLocations =
+    await db.execute<DueProviderSyncLocation>(sql`
+      SELECT
+        organization_id,
+        location_id
+      FROM public.revo_due_provider_sync_locations(
+        ${dueBeforeTimestamp}::timestamp without time zone
       )
-    )
-    .where(
-      and(
-        isNotNull(locations.provider),
-        isNotNull(locations.externalId),
-        isNotNull(locations.providerConnectionId),
-        eq(providerConnections.status, 'connected'),
-        or(
-          isNull(locations.lastSyncAttemptAt),
-          lte(locations.lastSyncAttemptAt, dueBefore)
-        )
-      )
-    );
+    `);
 
   let enqueued = 0;
 
   for (const location of dueLocations) {
     const dedupeKey =
-      `sync-provider-reviews:${location.organizationId}:${location.id}`;
+      `sync-provider-reviews:${location.organization_id}:${location.location_id}`;
 
     const job = await enqueueJobWithDb(db, {
-      organizationId: location.organizationId,
+      organizationId: location.organization_id,
       type: 'sync-provider-reviews',
       payload: {
-        locationId: location.id
+        locationId: location.location_id
       },
       dedupeKey
     });
@@ -80,6 +55,7 @@ export async function enqueueDueProviderSyncs(
   return {
     due: dueLocations.length,
     enqueued,
-    deduplicated: dueLocations.length - enqueued
+    deduplicated:
+      dueLocations.length - enqueued
   };
 }

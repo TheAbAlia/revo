@@ -1,3 +1,5 @@
+import { sql } from 'drizzle-orm';
+
 import { claimNextJob } from '@/lib/jobs/claim';
 import { isPermanentJobError } from '@/lib/jobs/errors';
 import {
@@ -49,7 +51,17 @@ export async function runNextJob(
   );
 
   try {
-    await processor(db, job);
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`
+        select set_config(
+          'revo.organization_id',
+          ${String(job.organizationId)},
+          true
+        )
+      `);
+
+      await processor(tx, job);
+    });
 
     await lease.stop();
 

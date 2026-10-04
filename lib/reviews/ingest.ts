@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import type { createWorkerDb } from '@/lib/db/worker';
+import type { DbExecutor } from '@/lib/db/types';
 import {
   automationSettings,
   jobs,
@@ -22,7 +22,7 @@ export type IngestReviewResult = {
 };
 
 export async function ingestReview(
-  db: ReturnType<typeof createWorkerDb>['db'],
+  db: DbExecutor,
   input: IngestReviewInput
 ): Promise<IngestReviewResult> {
   if (

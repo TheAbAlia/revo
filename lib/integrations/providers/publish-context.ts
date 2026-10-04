@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 
-import type { createWorkerDb } from '@/lib/db/worker';
+import type { DbExecutor } from '@/lib/db/types';
 import {
   locations,
   providerConnections,
@@ -10,7 +10,7 @@ import {
 import type { Provider } from '@/lib/integrations/providers/types';
 
 export async function getProviderPublishContext(
-  db: ReturnType<typeof createWorkerDb>['db'],
+  db: DbExecutor,
   organizationId: number,
   responseId: number
 ) {

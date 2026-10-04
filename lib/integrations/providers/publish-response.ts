@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 
-import type { createWorkerDb } from '@/lib/db/worker';
+import type { DbExecutor } from '@/lib/db/types';
 import { providerConnections } from '@/lib/db/schema';
 import { decryptCredential } from '@/lib/integrations/crypto';
 import { publishGoogleReviewResponse } from '@/lib/integrations/google/publish-review-response';
@@ -23,7 +23,7 @@ const defaultDependencies: PublishProviderResponseDependencies = {
 };
 
 async function getProviderRefreshToken(
-  db: ReturnType<typeof createWorkerDb>['db'],
+  db: DbExecutor,
   organizationId: number,
   providerConnectionId: number,
   decrypt: typeof decryptCredential
@@ -50,7 +50,7 @@ async function getProviderRefreshToken(
 }
 
 export async function publishProviderResponse(
-  db: ReturnType<typeof createWorkerDb>['db'],
+  db: DbExecutor,
   organizationId: number,
   responseId: number,
   dependencies: PublishProviderResponseDependencies =

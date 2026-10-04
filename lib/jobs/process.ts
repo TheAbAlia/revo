@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { ClaimedJob } from '@/lib/jobs/claim';
 import { PermanentJobError } from '@/lib/jobs/errors';
-import type { createWorkerDb } from '@/lib/db/worker';
+import type { DbExecutor } from '@/lib/db/types';
 import { automationSettings } from '@/lib/db/schema';
 import { generateDraftForReview } from '@/lib/reviews/generate-draft';
 import { syncProviderReviews } from '@/lib/integrations/providers/sync-reviews';
@@ -103,7 +103,7 @@ function parsePublishResponsePayload(
 }
 
 export async function processJob(
-  db: ReturnType<typeof createWorkerDb>['db'],
+  db: DbExecutor,
   job: ClaimedJob
 ) {
   switch (job.type) {

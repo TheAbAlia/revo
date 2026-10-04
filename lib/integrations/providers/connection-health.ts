@@ -1,10 +1,10 @@
 import { and, eq } from 'drizzle-orm';
 
-import type { createWorkerDb } from '@/lib/db/worker';
+import type { DbExecutor } from '@/lib/db/types';
 import { providerConnections } from '@/lib/db/schema';
 
 export async function markProviderConnectionNeedsReauth(
-  db: ReturnType<typeof createWorkerDb>['db'],
+  db: DbExecutor,
   organizationId: number,
   providerConnectionId: number,
   error: unknown
@@ -38,7 +38,7 @@ export async function markProviderConnectionNeedsReauth(
 }
 
 export async function markProviderConnectionHealthy(
-  db: ReturnType<typeof createWorkerDb>['db'],
+  db: DbExecutor,
   organizationId: number,
   providerConnectionId: number
 ) {

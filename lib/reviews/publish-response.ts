@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import type { createWorkerDb } from '@/lib/db/worker';
+import type { DbExecutor } from '@/lib/db/types';
 import {
   locations,
   responses,
@@ -19,7 +19,7 @@ export type PublishResponseResult = {
 };
 
 export async function publishResponse(
-  db: ReturnType<typeof createWorkerDb>['db'],
+  db: DbExecutor,
   organizationId: number,
   responseId: number,
   publisher: ReviewResponsePublisher

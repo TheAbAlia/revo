@@ -1,4 +1,4 @@
-import type { createWorkerDb } from '@/lib/db/worker';
+import type { DbExecutor } from '@/lib/db/types';
 import {
   isGoogleOAuthReauthError
 } from '@/lib/integrations/google/errors';
@@ -10,7 +10,7 @@ import {
 } from '@/lib/integrations/providers/connection-health';
 
 export async function refreshGoogleProviderAccessToken(
-  db: ReturnType<typeof createWorkerDb>['db'],
+  db: DbExecutor,
   organizationId: number,
   providerConnectionId: number,
   refreshToken: string,
