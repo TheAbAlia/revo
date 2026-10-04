@@ -13,6 +13,7 @@ import {
   brandVoices,
   jobs,
   locations,
+  organizationBilling,
   organizationMembers,
   providerConnections,
   organizations,
@@ -2911,6 +2912,190 @@ test('Settings API is authenticated and user scoped', async () => {
       await testDb.db
         .delete(users)
         .where(eq(users.id, otherUserId));
+    }
+
+    await testDb.client.end();
+  }
+});
+
+test('GET /v1/billing rejects requests without a session', async () => {
+  const api = buildApi();
+
+  try {
+    const response = await api.inject({
+      method: 'GET',
+      url: '/v1/billing'
+    });
+
+    assert.equal(response.statusCode, 401);
+    assert.deepEqual(response.json(), {
+      error: 'Unauthorized'
+    });
+  } finally {
+    await api.close();
+  }
+});
+
+test('GET /v1/billing returns only the authenticated organization billing state', async () => {
+  const testDb = createTestDb();
+  const suffix = `${Date.now()}-${process.pid}`;
+
+  let userId: number | null = null;
+  let organizationAId: number | null = null;
+  let organizationBId: number | null = null;
+
+  try {
+    const [user] = await testDb.db
+      .insert(users)
+      .values({
+        name: 'API billing test user',
+        email: `api-billing-${suffix}@example.test`,
+        passwordHash: 'not-used-by-this-test'
+      })
+      .returning({
+        id: users.id
+      });
+
+    assert.ok(user);
+    userId = user.id;
+
+    const [organizationA] = await testDb.db
+      .insert(organizations)
+      .values({
+        name: 'Billing Tenant A',
+        slug: `billing-tenant-a-${suffix}`
+      })
+      .returning({
+        id: organizations.id
+      });
+
+    const [organizationB] = await testDb.db
+      .insert(organizations)
+      .values({
+        name: 'Billing Tenant B',
+        slug: `billing-tenant-b-${suffix}`
+      })
+      .returning({
+        id: organizations.id
+      });
+
+    assert.ok(organizationA);
+    assert.ok(organizationB);
+
+    organizationAId = organizationA.id;
+    organizationBId = organizationB.id;
+
+    await testDb.db
+      .insert(organizationMembers)
+      .values({
+        organizationId: organizationA.id,
+        userId: user.id,
+        role: 'owner'
+      });
+
+    await testDb.db
+      .insert(organizationBilling)
+      .values([
+        {
+          organizationId: organizationA.id,
+          stripeCustomerId:
+            `cus_tenant_a_${suffix}`,
+          stripeSubscriptionId:
+            `sub_tenant_a_${suffix}`,
+          stripeProductId:
+            `prod_tenant_a_${suffix}`,
+          planName: 'pro',
+          subscriptionStatus: 'active'
+        },
+        {
+          organizationId: organizationB.id,
+          stripeCustomerId:
+            `cus_tenant_b_${suffix}`,
+          stripeSubscriptionId:
+            `sub_tenant_b_${suffix}`,
+          stripeProductId:
+            `prod_tenant_b_${suffix}`,
+          planName: 'foreign',
+          subscriptionStatus: 'active'
+        }
+      ]);
+
+    const token = await signToken({
+      user: {
+        id: user.id
+      },
+      expires: new Date(
+        Date.now() + 60 * 60 * 1000
+      ).toISOString()
+    });
+
+    const api = buildApi();
+
+    try {
+      const response = await api.inject({
+        method: 'GET',
+        url: '/v1/billing',
+        headers: {
+          cookie: `session=${token}`
+        }
+      });
+
+      assert.equal(response.statusCode, 200);
+
+      const body = response.json();
+
+      assert.equal(
+        body.organization.id,
+        organizationA.id
+      );
+      assert.equal(
+        body.organization.name,
+        'Billing Tenant A'
+      );
+
+      assert.ok(body.billing);
+      assert.equal(
+        body.billing.organizationId,
+        organizationA.id
+      );
+      assert.equal(
+        body.billing.stripeCustomerId,
+        `cus_tenant_a_${suffix}`
+      );
+      assert.equal(
+        body.billing.stripeSubscriptionId,
+        `sub_tenant_a_${suffix}`
+      );
+      assert.equal(
+        body.billing.stripeProductId,
+        `prod_tenant_a_${suffix}`
+      );
+      assert.equal(body.billing.planName, 'pro');
+
+      assert.notEqual(
+        body.billing.stripeCustomerId,
+        `cus_tenant_b_${suffix}`
+      );
+    } finally {
+      await api.close();
+    }
+  } finally {
+    if (organizationAId !== null) {
+      await testDb.db
+        .delete(organizations)
+        .where(eq(organizations.id, organizationAId));
+    }
+
+    if (organizationBId !== null) {
+      await testDb.db
+        .delete(organizations)
+        .where(eq(organizations.id, organizationBId));
+    }
+
+    if (userId !== null) {
+      await testDb.db
+        .delete(users)
+        .where(eq(users.id, userId));
     }
 
     await testDb.client.end();

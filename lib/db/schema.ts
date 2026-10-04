@@ -158,6 +158,42 @@ export const organizations = pgTable('organizations', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
+export const organizationBilling = pgTable(
+  'organization_billing',
+  {
+    id: serial('id').primaryKey(),
+
+    organizationId: integer('organization_id')
+      .notNull()
+      .references(() => organizations.id, {
+        onDelete: 'cascade'
+      }),
+
+    stripeCustomerId: text('stripe_customer_id').unique(),
+    stripeSubscriptionId:
+      text('stripe_subscription_id').unique(),
+    stripeProductId: text('stripe_product_id'),
+    planName: varchar('plan_name', { length: 50 }),
+    subscriptionStatus: varchar(
+      'subscription_status',
+      { length: 20 }
+    ),
+
+    createdAt: timestamp('created_at')
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at')
+      .notNull()
+      .defaultNow()
+  },
+  (table) => [
+    uniqueIndex(
+      'organization_billing_organization_unique'
+    ).on(table.organizationId)
+  ]
+);
+
+
 export const automationSettings = pgTable(
   'automation_settings',
   {
@@ -457,12 +493,23 @@ export const organizationsRelations = relations(
   ({ many, one }) => ({
     members: many(organizationMembers),
     automationSettings: one(automationSettings),
+    billing: one(organizationBilling),
     providerConnections: many(providerConnections),
     locations: many(locations),
     brandVoices: many(brandVoices),
     reviews: many(reviews),
     responses: many(responses),
     aiResponseGenerations: many(aiResponseGenerations),
+  })
+);
+
+export const organizationBillingRelations = relations(
+  organizationBilling,
+  ({ one }) => ({
+    organization: one(organizations, {
+      fields: [organizationBilling.organizationId],
+      references: [organizations.id],
+    }),
   })
 );
 
@@ -584,6 +631,12 @@ export const aiResponseGenerationsRelations = relations(
 
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
+
+export type OrganizationBilling =
+  typeof organizationBilling.$inferSelect;
+
+export type NewOrganizationBilling =
+  typeof organizationBilling.$inferInsert;
 
 export type AutomationSettings =
   typeof automationSettings.$inferSelect;

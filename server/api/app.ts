@@ -659,6 +659,47 @@ export function buildApi() {
     };
   });
 
+  api.get('/v1/billing', async (request, reply) => {
+    const sessionToken =
+      getSessionTokenFromRequest(request);
+
+    if (!sessionToken) {
+      return reply.code(401).send({
+        error: 'Unauthorized'
+      });
+    }
+
+    const context =
+      await resolveAuthenticatedContext(
+        apiDb.db,
+        sessionToken
+      );
+
+    if (!context) {
+      return reply.code(401).send({
+        error: 'Unauthorized'
+      });
+    }
+
+    const { getOrganizationBilling } =
+      await import('./billing/queries');
+
+    const billing = await withTenantContext(
+      apiDb.db,
+      context.organization.id,
+      (tx) =>
+        getOrganizationBilling(
+          tx,
+          context.organization.id
+        )
+    );
+
+    return {
+      organization: context.organization,
+      billing
+    };
+  });
+
   api.get('/v1/reviews', async (request, reply) => {
     const sessionToken =
       getSessionTokenFromRequest(request);

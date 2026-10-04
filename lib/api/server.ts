@@ -139,6 +139,57 @@ export async function getAuthenticatedContext() {
   }>;
 }
 
+export type BillingState = {
+  organization: {
+    id: number;
+    name: string;
+  };
+  billing: {
+    id: number;
+    organizationId: number;
+    stripeCustomerId: string | null;
+    stripeSubscriptionId: string | null;
+    stripeProductId: string | null;
+    planName: string | null;
+    subscriptionStatus: string | null;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
+};
+
+export async function getBillingState(): Promise<
+  BillingState | null
+> {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return null;
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/billing`,
+    {
+      headers: {
+        cookie: `session=${session}`
+      },
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `Revo API request failed with status ${response.status}`
+    );
+  }
+
+  return response.json() as Promise<BillingState>;
+}
+
 type DashboardShell = {
   organization: {
     id: number;
