@@ -2918,6 +2918,315 @@ test('Settings API is authenticated and user scoped', async () => {
   }
 });
 
+test('GET /v1/billing/catalog exposes the public Stripe catalog boundary', async () => {
+  const previousStripeKey =
+    process.env.STRIPE_SECRET_KEY;
+
+  delete process.env.STRIPE_SECRET_KEY;
+
+  const api = buildApi();
+
+  try {
+    const response = await api.inject({
+      method: 'GET',
+      url: '/v1/billing/catalog'
+    });
+
+    assert.equal(response.statusCode, 500);
+  } finally {
+    await api.close();
+
+    if (previousStripeKey !== undefined) {
+      process.env.STRIPE_SECRET_KEY =
+        previousStripeKey;
+    }
+  }
+});
+
+test('POST /v1/billing/webhook requires a Stripe signature', async () => {
+  const api = buildApi();
+
+  try {
+    const response = await api.inject({
+      method: 'POST',
+      url: '/v1/billing/webhook',
+      headers: {
+        'content-type': 'application/octet-stream'
+      },
+      payload: Buffer.from('{}')
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.deepEqual(response.json(), {
+      error: 'Missing Stripe signature'
+    });
+  } finally {
+    await api.close();
+  }
+});
+
+test('POST /v1/billing/webhook rejects an invalid Stripe signature', async () => {
+  const previousSecret =
+    process.env.STRIPE_WEBHOOK_SECRET;
+  const previousStripeKey =
+    process.env.STRIPE_SECRET_KEY;
+
+  process.env.STRIPE_WEBHOOK_SECRET =
+    'whsec_revo_test_secret';
+  process.env.STRIPE_SECRET_KEY =
+    'sk_test_revo_test_key';
+
+  const api = buildApi();
+
+  try {
+    const response = await api.inject({
+      method: 'POST',
+      url: '/v1/billing/webhook',
+      headers: {
+        'content-type': 'application/octet-stream',
+        'stripe-signature':
+          't=1,v1=invalid'
+      },
+      payload: Buffer.from('{}')
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.deepEqual(response.json(), {
+      error: 'Invalid Stripe signature'
+    });
+  } finally {
+    await api.close();
+
+    if (previousSecret === undefined) {
+      delete process.env.STRIPE_WEBHOOK_SECRET;
+    } else {
+      process.env.STRIPE_WEBHOOK_SECRET =
+        previousSecret;
+    }
+
+    if (previousStripeKey === undefined) {
+      delete process.env.STRIPE_SECRET_KEY;
+    } else {
+      process.env.STRIPE_SECRET_KEY =
+        previousStripeKey;
+    }
+  }
+});
+
+test('POST /v1/billing/portal rejects requests without a session', async () => {
+  const api = buildApi();
+
+  try {
+    const response = await api.inject({
+      method: 'POST',
+      url: '/v1/billing/portal'
+    });
+
+    assert.equal(response.statusCode, 401);
+    assert.deepEqual(response.json(), {
+      error: 'Unauthorized'
+    });
+  } finally {
+    await api.close();
+  }
+});
+
+test('POST /v1/billing/portal rejects organizations without billing state', async () => {
+  const testDb = createTestDb();
+  const suffix = `${Date.now()}-${process.pid}`;
+
+  let userId: number | null = null;
+  let organizationId: number | null = null;
+
+  try {
+    const [user] = await testDb.db
+      .insert(users)
+      .values({
+        name: 'API portal test user',
+        email: `api-portal-${suffix}@example.test`,
+        passwordHash: 'not-used-by-this-test'
+      })
+      .returning({
+        id: users.id
+      });
+
+    assert.ok(user);
+    userId = user.id;
+
+    const [organization] = await testDb.db
+      .insert(organizations)
+      .values({
+        name: 'Portal Tenant',
+        slug: `portal-tenant-${suffix}`
+      })
+      .returning({
+        id: organizations.id
+      });
+
+    assert.ok(organization);
+    organizationId = organization.id;
+
+    await testDb.db
+      .insert(organizationMembers)
+      .values({
+        organizationId: organization.id,
+        userId: user.id,
+        role: 'owner'
+      });
+
+    const token = await signToken({
+      user: {
+        id: user.id
+      },
+      expires: new Date(
+        Date.now() + 60 * 60 * 1000
+      ).toISOString()
+    });
+
+    const api = buildApi();
+
+    try {
+      const response = await api.inject({
+        method: 'POST',
+        url: '/v1/billing/portal',
+        headers: {
+          cookie: `session=${token}`
+        }
+      });
+
+      assert.equal(response.statusCode, 409);
+      assert.deepEqual(response.json(), {
+        error: 'No active billing account'
+      });
+    } finally {
+      await api.close();
+    }
+  } finally {
+    if (organizationId !== null) {
+      await testDb.db
+        .delete(organizations)
+        .where(eq(organizations.id, organizationId));
+    }
+
+    if (userId !== null) {
+      await testDb.db
+        .delete(users)
+        .where(eq(users.id, userId));
+    }
+
+    await testDb.client.end();
+  }
+});
+
+test('POST /v1/billing/checkout rejects requests without a session', async () => {
+  const api = buildApi();
+
+  try {
+    const response = await api.inject({
+      method: 'POST',
+      url: '/v1/billing/checkout',
+      payload: {
+        priceId: 'price_test'
+      }
+    });
+
+    assert.equal(response.statusCode, 401);
+    assert.deepEqual(response.json(), {
+      error: 'Unauthorized'
+    });
+  } finally {
+    await api.close();
+  }
+});
+
+test('POST /v1/billing/checkout rejects an invalid price before contacting Stripe', async () => {
+  const testDb = createTestDb();
+  const suffix = `${Date.now()}-${process.pid}`;
+
+  let userId: number | null = null;
+  let organizationId: number | null = null;
+
+  try {
+    const [user] = await testDb.db
+      .insert(users)
+      .values({
+        name: 'API checkout test user',
+        email: `api-checkout-${suffix}@example.test`,
+        passwordHash: 'not-used-by-this-test'
+      })
+      .returning({
+        id: users.id
+      });
+
+    assert.ok(user);
+    userId = user.id;
+
+    const [organization] = await testDb.db
+      .insert(organizations)
+      .values({
+        name: 'Checkout Tenant',
+        slug: `checkout-tenant-${suffix}`
+      })
+      .returning({
+        id: organizations.id
+      });
+
+    assert.ok(organization);
+    organizationId = organization.id;
+
+    await testDb.db
+      .insert(organizationMembers)
+      .values({
+        organizationId: organization.id,
+        userId: user.id,
+        role: 'owner'
+      });
+
+    const token = await signToken({
+      user: {
+        id: user.id
+      },
+      expires: new Date(
+        Date.now() + 60 * 60 * 1000
+      ).toISOString()
+    });
+
+    const api = buildApi();
+
+    try {
+      const response = await api.inject({
+        method: 'POST',
+        url: '/v1/billing/checkout',
+        headers: {
+          cookie: `session=${token}`
+        },
+        payload: {}
+      });
+
+      assert.equal(response.statusCode, 400);
+      assert.deepEqual(response.json(), {
+        error: 'Invalid price'
+      });
+    } finally {
+      await api.close();
+    }
+  } finally {
+    if (organizationId !== null) {
+      await testDb.db
+        .delete(organizations)
+        .where(eq(organizations.id, organizationId));
+    }
+
+    if (userId !== null) {
+      await testDb.db
+        .delete(users)
+        .where(eq(users.id, userId));
+    }
+
+    await testDb.client.end();
+  }
+});
+
 test('GET /v1/billing rejects requests without a session', async () => {
   const api = buildApi();
 

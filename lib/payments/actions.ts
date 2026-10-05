@@ -1,15 +1,45 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { createCheckoutSession, createCustomerPortalSession } from './stripe';
-import { withTeam } from '@/lib/auth/middleware';
 
-export const checkoutAction = withTeam(async (formData, team) => {
-  const priceId = formData.get('priceId') as string;
-  await createCheckoutSession({ team: team, priceId });
-});
+import {
+  createBillingCheckout,
+  createBillingPortal
+} from '@/lib/api/server';
 
-export const customerPortalAction = withTeam(async (_, team) => {
-  const portalSession = await createCustomerPortalSession(team);
-  redirect(portalSession.url);
-});
+export async function checkoutAction(
+  formData: FormData
+) {
+  const priceId = formData.get('priceId');
+
+  if (
+    typeof priceId !== 'string' ||
+    !priceId.trim()
+  ) {
+    throw new Error('Invalid price');
+  }
+
+  const checkout = await createBillingCheckout(
+    priceId.trim()
+  );
+
+  if (!checkout) {
+    redirect(
+      `/sign-up?redirect=checkout&priceId=${encodeURIComponent(
+        priceId.trim()
+      )}`
+    );
+  }
+
+  redirect(checkout.url);
+}
+
+export async function customerPortalAction() {
+  const portal = await createBillingPortal();
+
+  if (!portal) {
+    redirect('/pricing');
+  }
+
+  redirect(portal.url);
+}

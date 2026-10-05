@@ -18,6 +18,14 @@ export function buildApi() {
     bodyLimit: API_BODY_LIMIT_BYTES
   });
 
+  api.addContentTypeParser(
+    'application/octet-stream',
+    { parseAs: 'buffer' },
+    (_request, body, done) => {
+      done(null, body);
+    }
+  );
+
   const apiDb = createApiDb();
 
   api.addHook('onClose', async () => {
@@ -659,6 +667,137 @@ export function buildApi() {
     };
   });
 
+  api.post<{
+    Body: Buffer;
+  }>('/v1/billing/webhook', async (request, reply) => {
+    const signature =
+      request.headers['stripe-signature'];
+
+    if (
+      typeof signature !== 'string' ||
+      !signature
+    ) {
+      return reply.code(400).send({
+        error: 'Missing Stripe signature'
+      });
+    }
+
+    const webhookSecret =
+      process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!webhookSecret) {
+      throw new Error(
+        'STRIPE_WEBHOOK_SECRET is not configured'
+      );
+    }
+
+    const {
+      getStripeClient
+    } = await import('./billing/stripe');
+
+    const stripe = getStripeClient();
+
+    let event;
+
+    try {
+      event = stripe.webhooks.constructEvent(
+        request.body,
+        signature,
+        webhookSecret
+      );
+    } catch {
+      return reply.code(400).send({
+        error: 'Invalid Stripe signature'
+      });
+    }
+
+    if (
+      event.type !==
+        'customer.subscription.created' &&
+      event.type !==
+        'customer.subscription.updated' &&
+      event.type !==
+        'customer.subscription.deleted'
+    ) {
+      return {
+        received: true
+      };
+    }
+
+    const subscription = event.data.object;
+
+    const {
+      getWebhookOrganizationId,
+      applySubscriptionWebhook
+    } = await import('./billing/webhook');
+
+    const organizationId =
+      getWebhookOrganizationId(subscription);
+
+    if (organizationId === null) {
+      return reply.code(400).send({
+        error: 'Missing organization metadata'
+      });
+    }
+
+    let productName: string | null = null;
+
+    if (
+      subscription.status !== 'canceled' &&
+      subscription.status !== 'unpaid'
+    ) {
+      const product =
+        subscription.items.data[0]?.price.product;
+
+      if (product) {
+        if (typeof product === 'string') {
+          const stripeProduct =
+            await stripe.products.retrieve(product);
+
+          if (!stripeProduct.deleted) {
+            productName = stripeProduct.name;
+          }
+        } else if (!product.deleted) {
+          productName = product.name;
+        }
+      }
+    }
+
+    try {
+      await withTenantContext(
+        apiDb.db,
+        organizationId,
+        (tx) =>
+          applySubscriptionWebhook(
+            tx,
+            organizationId,
+            subscription,
+            productName
+          )
+      );
+    } catch (error) {
+      request.log.error(
+        { err: error },
+        'Stripe billing webhook rejected'
+      );
+
+      return reply.code(409).send({
+        error: 'Billing webhook rejected'
+      });
+    }
+
+    return {
+      received: true
+    };
+  });
+
+  api.get('/v1/billing/catalog', async () => {
+    const { getBillingCatalog } =
+      await import('./billing/stripe');
+
+    return getBillingCatalog();
+  });
+
   api.get('/v1/billing', async (request, reply) => {
     const sessionToken =
       getSessionTokenFromRequest(request);
@@ -698,6 +837,124 @@ export function buildApi() {
       organization: context.organization,
       billing
     };
+  });
+
+  api.post<{
+    Body: {
+      priceId?: unknown;
+    };
+  }>('/v1/billing/checkout', async (request, reply) => {
+    const sessionToken =
+      getSessionTokenFromRequest(request);
+
+    if (!sessionToken) {
+      return reply.code(401).send({
+        error: 'Unauthorized'
+      });
+    }
+
+    const context =
+      await resolveAuthenticatedContext(
+        apiDb.db,
+        sessionToken
+      );
+
+    if (!context) {
+      return reply.code(401).send({
+        error: 'Unauthorized'
+      });
+    }
+
+    const priceId = request.body?.priceId;
+
+    if (
+      typeof priceId !== 'string' ||
+      !priceId.trim()
+    ) {
+      return reply.code(400).send({
+        error: 'Invalid price'
+      });
+    }
+
+    const { getOrganizationBilling } =
+      await import('./billing/queries');
+
+    const billing = await withTenantContext(
+      apiDb.db,
+      context.organization.id,
+      (tx) =>
+        getOrganizationBilling(
+          tx,
+          context.organization.id
+        )
+    );
+
+    const { createOrganizationCheckoutSession } =
+      await import('./billing/stripe');
+
+    const checkout =
+      await createOrganizationCheckoutSession({
+        organizationId: context.organization.id,
+        organizationName: context.organization.name,
+        priceId: priceId.trim(),
+        stripeCustomerId:
+          billing?.stripeCustomerId ?? null
+      });
+
+    return checkout;
+  });
+
+  api.post('/v1/billing/portal', async (request, reply) => {
+    const sessionToken =
+      getSessionTokenFromRequest(request);
+
+    if (!sessionToken) {
+      return reply.code(401).send({
+        error: 'Unauthorized'
+      });
+    }
+
+    const context =
+      await resolveAuthenticatedContext(
+        apiDb.db,
+        sessionToken
+      );
+
+    if (!context) {
+      return reply.code(401).send({
+        error: 'Unauthorized'
+      });
+    }
+
+    const { getOrganizationBilling } =
+      await import('./billing/queries');
+
+    const billing = await withTenantContext(
+      apiDb.db,
+      context.organization.id,
+      (tx) =>
+        getOrganizationBilling(
+          tx,
+          context.organization.id
+        )
+    );
+
+    if (
+      !billing?.stripeCustomerId ||
+      !billing.stripeProductId
+    ) {
+      return reply.code(409).send({
+        error: 'No active billing account'
+      });
+    }
+
+    const { createOrganizationPortalSession } =
+      await import('./billing/stripe');
+
+    return createOrganizationPortalSession({
+      stripeCustomerId: billing.stripeCustomerId,
+      stripeProductId: billing.stripeProductId
+    });
   });
 
   api.get('/v1/reviews', async (request, reply) => {

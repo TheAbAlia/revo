@@ -1230,3 +1230,124 @@ export async function saveSettingsPassword(
     success: true as const
   };
 }
+
+export async function createBillingCheckout(
+  priceId: string
+): Promise<{ url: string } | null> {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return null;
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/billing/checkout`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `session=${session}`
+      },
+      body: JSON.stringify({
+        priceId
+      }),
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `Revo API request failed with status ${response.status}`
+    );
+  }
+
+  return response.json() as Promise<{
+    url: string;
+  }>;
+}
+
+export async function createBillingPortal():
+  Promise<{ url: string } | null> {
+  const session =
+    (await cookies()).get('session')?.value;
+
+  if (!session) {
+    return null;
+  }
+
+  const response = await fetch(
+    `${API_URL}/v1/billing/portal`,
+    {
+      method: 'POST',
+      headers: {
+        cookie: `session=${session}`
+      },
+      cache: 'no-store'
+    }
+  );
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (response.status === 409) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `Revo API request failed with status ${response.status}`
+    );
+  }
+
+  return response.json() as Promise<{
+    url: string;
+  }>;
+}
+
+export type BillingCatalog = {
+  prices: Array<{
+    id: string;
+    productId: string;
+    unitAmount: number | null;
+    currency: string;
+    interval:
+      | 'day'
+      | 'week'
+      | 'month'
+      | 'year'
+      | null;
+    trialPeriodDays: number | null;
+  }>;
+  products: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    defaultPriceId: string | null;
+  }>;
+};
+
+export async function getBillingCatalog():
+  Promise<BillingCatalog> {
+  const response = await fetch(
+    `${API_URL}/v1/billing/catalog`,
+    {
+      next: {
+        revalidate: 3600
+      }
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Revo API request failed with status ${response.status}`
+    );
+  }
+
+  return response.json() as Promise<BillingCatalog>;
+}

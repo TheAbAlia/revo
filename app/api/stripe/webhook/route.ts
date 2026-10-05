@@ -1,34 +1,55 @@
-import Stripe from 'stripe';
-import { handleSubscriptionChange, stripe } from '@/lib/payments/stripe';
-import { NextRequest, NextResponse } from 'next/server';
+import {
+  NextRequest,
+  NextResponse
+} from 'next/server';
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+const API_URL =
+  process.env.REVO_API_URL ??
+  'http://127.0.0.1:4000';
 
-export async function POST(request: NextRequest) {
-  const payload = await request.text();
-  const signature = request.headers.get('stripe-signature') as string;
+export async function POST(
+  request: NextRequest
+) {
+  const signature =
+    request.headers.get('stripe-signature');
 
-  let event: Stripe.Event;
-
-  try {
-    event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
-  } catch (err) {
-    console.error('Webhook signature verification failed.', err);
+  if (!signature) {
     return NextResponse.json(
-      { error: 'Webhook signature verification failed.' },
-      { status: 400 }
+      {
+        error: 'Missing Stripe signature'
+      },
+      {
+        status: 400
+      }
     );
   }
 
-  switch (event.type) {
-    case 'customer.subscription.updated':
-    case 'customer.subscription.deleted':
-      const subscription = event.data.object as Stripe.Subscription;
-      await handleSubscriptionChange(subscription);
-      break;
-    default:
-      console.log(`Unhandled event type ${event.type}`);
-  }
+  const payload = await request.arrayBuffer();
 
-  return NextResponse.json({ received: true });
+  const response = await fetch(
+    `${API_URL}/v1/billing/webhook`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type':
+          'application/octet-stream',
+        'stripe-signature': signature
+      },
+      body: payload,
+      cache: 'no-store'
+    }
+  );
+
+  const body = await response
+    .json()
+    .catch(() => ({
+      error: 'Billing webhook failed'
+    }));
+
+  return NextResponse.json(
+    body,
+    {
+      status: response.status
+    }
+  );
 }
